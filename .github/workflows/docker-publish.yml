@@ -1,0 +1,46 @@
+name: Build and Push Docker Images
+
+# 触发条件：当 main 分支有代码 push 时执行
+on:
+  push:
+    branches: [ "master" ]
+  # 也可以增加手动触发开关
+  workflow_dispatch:
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_TOKEN }}
+
+      # 设置 Docker Buildx (支持多平台构建的插件)
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # 1. 构建并推送后端镜像
+      - name: Build and Push Backend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          push: true
+          # 自动打上 latest 标签，也可以根据提交 ID 打标签
+          tags: |
+            ${{ secrets.DOCKER_HUB_USERNAME }}/fs-backend:latest
+            ${{ secrets.DOCKER_HUB_USERNAME }}/fs-backend:${{ github.sha }}
+
+      # 2. 构建并推送前端镜像
+      - name: Build and Push Frontend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          push: true
+          tags: |
+            ${{ secrets.DOCKER_HUB_USERNAME }}/fs-frontend:latest
+            ${{ secrets.DOCKER_HUB_USERNAME }}/fs-frontend:${{ github.sha }}
