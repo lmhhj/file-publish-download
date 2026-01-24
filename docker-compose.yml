@@ -1,0 +1,32 @@
+services:
+  backend:
+    build: ./backend
+    container_name: fs-backend
+    restart: always
+    volumes:
+      - ./data:/data
+    environment:
+      - DATA_DIR=/data
+      - SECRET_KEY=changethissecretkey123456
+    networks:
+      - fs-net
+
+  frontend:
+    image: nginx:alpine
+    container_name: fs-frontend
+    restart: always
+    volumes:
+      - ./frontend/public:/usr/share/nginx/html
+      - ./frontend/admin:/usr/share/nginx/html/admin
+      - ./frontend/nginx.conf:/etc/nginx/conf.d/default.conf
+      - ./data/uploads:/usr/share/nginx/html/files:ro
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+    networks:
+      - fs-net
+
+networks:
+  fs-net:
+    driver: bridge

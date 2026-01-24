@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>资源下载中心</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@2.5.0/fonts/remixicon.css" rel="stylesheet">
+</head>
+<body class="bg-slate-50 text-slate-800">
+    <div id="app" class="min-h-screen py-10 px-4">
+        <div class="max-w-6xl mx-auto">
+            <div class="flex justify-between items-end mb-8">
+                <div>
+                    <h1 class="text-3xl font-bold text-slate-900 tracking-tight">
+                        <i class="ri-folder-shield-2-line text-blue-600 mr-2"></i>研发资源中心
+                    </h1>
+                    <p class="text-slate-500 mt-1">内部文档与固件分发平台</p>
+                </div>
+                <input v-model="search" type="text" placeholder="搜索文件..." class="bg-white border border-gray-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none shadow-sm w-64">
+            </div>
+
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="grid grid-cols-12 gap-4 px-6 py-3 bg-slate-50 border-b border-slate-100 text-xs font-semibold text-slate-500 uppercase">
+                    <div class="col-span-5">文件名</div>
+                    <div v-if="config.show_version" class="col-span-2">版本</div>
+                    <div v-if="config.show_date" class="col-span-2">日期</div>
+                    <div v-if="config.show_submitter" class="col-span-2">提交人</div>
+                    <div class="col-span-1 text-right">下载</div>
+                </div>
+
+                <div v-if="loading" class="p-10 text-center text-slate-400">加载中...</div>
+
+                <div v-else-if="filteredFiles.length === 0" class="p-10 text-center text-slate-400">暂无文件</div>
+
+                <ul v-else class="divide-y divide-slate-50">
+                    <li v-for="file in filteredFiles" :key="file.id" class="hover:bg-blue-50/50 transition duration-150 group">
+                        <div class="grid grid-cols-12 gap-4 px-6 py-4 items-center">
+                            <div class="col-span-5 min-w-0">
+                                <div class="flex items-center">
+                                    <div class="p-2 bg-blue-100 text-blue-600 rounded-lg mr-3">
+                                        <i class="ri-file-line"></i>
+                                    </div>
+                                    <div class="truncate">
+                                        <div class="font-medium text-slate-900 truncate" :title="file.name">{{ file.name }}</div>
+                                        <div v-if="config.show_md5 && file.md5" class="text-xs text-slate-400 font-mono mt-0.5">MD5: {{ file.md5 }}</div>
+                                        <div v-if="config.show_changelog && file.changelog" class="text-xs text-slate-500 mt-1 truncate max-w-md" :title="file.changelog">
+                                            <i class="ri-git-commit-line mr-1"></i>{{ file.changelog }}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div v-if="config.show_version" class="col-span-2">
+                                <span v-if="file.version" class="bg-green-100 text-green-700 px-2 py-0.5 rounded text-xs font-medium">{{ file.version }}</span>
+                            </div>
+                            <div v-if="config.show_date" class="col-span-2 text-sm text-slate-500">{{ file.date }}</div>
+                            <div v-if="config.show_submitter" class="col-span-2 text-sm text-slate-600 flex items-center">
+                                <span v-if="file.submitter" class="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-xs mr-2 font-bold">{{ file.submitter[0].toUpperCase() }}</span>
+                                {{ file.submitter }}
+                            </div>
+                            <div class="col-span-1 text-right">
+                                <a :href="file.url" download class="text-slate-400 hover:text-blue-600 p-2"><i class="ri-download-2-line text-xl"></i></a>
+                            </div>
+                        </div>
+                    </li>
+                </ul>
+            </div>
+            
+            <div class="text-center mt-8">
+               <a href="/admin/" class="text-xs text-slate-300 hover:text-slate-500">管理员入口</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, computed, onMounted } = Vue;
+        createApp({
+            setup() {
+                const config = ref({});
+                const files = ref([]);
+                const loading = ref(true);
+                const search = ref("");
+
+                const loadData = async () => {
+                    try {
+                        const [resConfig, resFiles] = await Promise.all([
+                            fetch('/api/public/config').then(r => r.json()),
+                            fetch('/api/public/files').then(r => r.json())
+                        ]);
+                        config.value = resConfig;
+                        files.value = resFiles;
+                    } catch (e) {
+                        console.error(e);
+                    } finally {
+                        loading.value = false;
+                    }
+                };
+
+                const filteredFiles = computed(() => {
+                    if (!search.value) return files.value;
+                    return files.value.filter(f => f.name.toLowerCase().includes(search.value.toLowerCase()));
+                });
+
+                onMounted(loadData);
+                return { config, files, loading, search, filteredFiles };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>

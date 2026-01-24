@@ -1,0 +1,28 @@
+# --- 数据库与敏感数据 ---
+*.db
+*.sqlite3
+data/
+backend/app/*.db
+
+# --- 缓存与临时文件 ---
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.DS_Store
+Thumbs.db
+
+# --- 环境变量与密钥 ---
+.env
+.venv
+env/
+venv/
+ENV/
+*.key
+*.pem
+
+# --- 静态资源 (可选) ---
+# 如果你希望 Git 仓库只保留代码，不保留测试用的上传文件
+frontend/public/files/*
+!frontend/public/files/.gitkeep

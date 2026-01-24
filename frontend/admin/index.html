@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>管理后台 - 研发资源中心</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@2.5.0/fonts/remixicon.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100 text-gray-800">
+    <div id="app" class="min-h-screen">
+        
+        <div v-if="!token" class="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center z-50 px-4">
+            <div class="bg-white p-8 rounded-xl shadow-2xl w-full max-w-md">
+                <div class="text-center mb-8">
+                    <h2 class="text-2xl font-bold text-gray-800">管理员登录</h2>
+                    <p class="text-gray-500 text-sm mt-2">请输入您的凭据以访问后台</p>
+                </div>
+                <div class="space-y-4">
+                    <input v-model="loginForm.username" type="text" placeholder="用户名" class="w-full p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                    <input v-model="loginForm.password" type="password" placeholder="密码" class="w-full p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" @keyup.enter="doLogin">
+                    <button @click="doLogin" class="w-full bg-blue-600 text-white py-3 rounded-lg font-bold hover:bg-blue-700 transition">立即登录</button>
+                </div>
+            </div>
+        </div>
+
+        <div v-else>
+            <nav class="bg-white shadow-sm border-b border-gray-100 px-6 py-4 sticky top-0 z-40">
+                <div class="max-w-7xl mx-auto flex justify-between items-center">
+                    <div class="flex items-center gap-6">
+                        <div class="font-bold text-lg flex items-center tracking-tighter">
+                            <span class="bg-blue-600 text-white px-2 py-0.5 rounded text-xs mr-2">ADMIN</span>
+                            后台管理平台
+                        </div>
+                        <a href="/" class="flex items-center text-sm text-blue-600 hover:text-blue-800 font-medium">
+                            <i class="ri-external-link-line mr-1"></i> 查看公共下载站
+                        </a>
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <div class="text-sm text-gray-500 bg-gray-50 px-3 py-1 rounded-full border border-gray-100">
+                            <i class="ri-user-follow-line mr-1"></i> 当前用户: <span class="font-bold text-gray-700">{{ currentUser }}</span>
+                        </div>
+                        <button @click="logout" class="text-sm text-red-500 hover:font-bold transition">退出</button>
+                    </div>
+                </div>
+            </nav>
+
+            <div class="max-w-7xl mx-auto mt-8 px-4 grid grid-cols-1 md:grid-cols-3 gap-8 pb-20">
+                
+                <div class="md:col-span-1 space-y-8">
+                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                        <h3 class="font-bold text-gray-700 mb-5 flex items-center"><i class="ri-upload-cloud-2-line mr-2 text-blue-500"></i>上传文件</h3>
+                        <div class="space-y-4">
+                            <div class="border-2 border-dashed border-gray-200 rounded-lg p-4 text-center hover:border-blue-400 transition cursor-pointer" @click="$refs.fileInput.click()">
+                                <input type="file" ref="fileInput" class="hidden" @change="handleFileChange"/>
+                                <i v-if="!selectedFile" class="ri-add-line text-3xl text-gray-300"></i>
+                                <div v-else class="text-sm text-blue-600 font-medium truncate">{{ selectedFile.name }}</div>
+                                <p class="text-xs text-gray-400 mt-2">{{ selectedFile ? '点击更换文件' : '选择或拖拽文件到这里' }}</p>
+                            </div>
+                            <input v-model="uploadForm.version" type="text" placeholder="版本号 (如 v1.0.1)" class="w-full p-2.5 text-sm border border-gray-200 rounded-lg outline-none focus:ring-1 focus:ring-blue-500">
+                            <textarea v-model="uploadForm.changelog" placeholder="变更记录描述..." class="w-full p-2.5 text-sm border border-gray-200 rounded-lg outline-none focus:ring-1 focus:ring-blue-500 h-24"></textarea>
+                            <button @click="uploadFile" :disabled="uploading" :class="uploading ? 'bg-gray-400' : 'bg-green-600 hover:bg-green-700'" class="w-full text-white py-2.5 rounded-lg font-bold transition shadow-md shadow-green-100">
+                                <i v-if="uploading" class="ri-loader-4-line animate-spin mr-2"></i>
+                                {{ uploading ? '正在上传中...' : '开始提交发布' }}
+                            </button>
+                        </div>
+                    </div>
+
+                    <div v-if="role === 'admin'" class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                        <h3 class="font-bold text-gray-700 mb-5 flex items-center"><i class="ri-user-settings-line mr-2 text-indigo-500"></i>账号管理</h3>
+                        <div class="space-y-4">
+                            <input v-model="userForm.username" type="text" placeholder="新账号用户名" class="w-full p-2.5 text-sm border border-gray-200 rounded-lg outline-none focus:ring-1 focus:ring-indigo-500">
+                            <input v-model="userForm.password" type="text" placeholder="新账号初始密码" class="w-full p-2.5 text-sm border border-gray-200 rounded-lg outline-none focus:ring-1 focus:ring-indigo-500">
+                            <button @click="createUser" class="w-full bg-gray-800 text-white py-2.5 rounded-lg font-bold hover:bg-black transition">创建内部成员账号</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="md:col-span-2 space-y-8">
+                    
+                    <div v-if="role === 'admin'" class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                        <h3 class="font-bold text-gray-700 mb-5 flex items-center"><i class="ri-toggle-line mr-2 text-orange-500"></i>前端展示项控制</h3>
+                        <div class="flex flex-wrap gap-6 bg-orange-50/30 p-4 rounded-lg">
+                            <label v-for="(val, key) in settingMap" :key="key" class="flex items-center space-x-2 cursor-pointer group">
+                                <input type="checkbox" v-model="settings[key]" @change="saveSettings" class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+                                <span class="text-sm font-medium text-gray-600 group-hover:text-blue-600 transition">{{ val }}</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                        <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                            <h3 class="font-bold text-gray-700">已发布文件库</h3>
+                            <span class="text-xs text-gray-400">共 {{ files.length }} 个资源</span>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full text-sm text-left">
+                                <thead class="bg-white text-gray-400 uppercase text-[10px] font-bold tracking-wider">
+                                    <tr>
+                                        <th class="px-6 py-3">文件名</th>
+                                        <th class="px-6 py-3">提交人员</th>
+                                        <th class="px-6 py-3 text-right">管理操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-gray-50">
+                                    <tr v-for="file in files" :key="file.id" class="hover:bg-blue-50/30 transition">
+                                        <td class="px-6 py-4">
+                                            <div class="font-medium text-gray-900">{{ file.name }}</div>
+                                            <div class="text-[10px] text-gray-400 mt-1 font-mono">ID: {{ file.id }} | {{ file.date }}</div>
+                                        </td>
+                                        <td class="px-6 py-4">
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600">
+                                                {{ file.submitter }}
+                                            </span>
+                                        </td>
+                                        <td class="px-6 py-4 text-right">
+                                            <button @click="deleteFile(file.id)" class="text-red-400 hover:text-red-600 font-bold px-3 py-1 rounded hover:bg-red-50 transition">
+                                                <i class="ri-delete-bin-7-line"></i> 删除
+                                            </button>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                            <div v-if="files.length === 0" class="p-12 text-center">
+                                <i class="ri-inbox-line text-4xl text-gray-200"></i>
+                                <p class="text-gray-400 mt-2">暂无上传记录</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, onMounted } = Vue;
+        createApp({
+            setup() {
+                // 初始化时从 localStorage 恢复状态
+                const token = ref(localStorage.getItem('token') || '');
+                const currentUser = ref(localStorage.getItem('username') || ''); 
+                const role = ref(localStorage.getItem('role') || '');
+                
+                const loginForm = ref({ username: '', password: '' });
+                const userForm = ref({ username: '', password: '' });
+                const uploadForm = ref({ version: '', changelog: '' });
+                const selectedFile = ref(null);
+                const fileInput = ref(null);
+                
+                const uploading = ref(false);
+                const settings = ref({});
+                const files = ref([]);
+
+                const settingMap = {
+                    show_md5: 'MD5校验码',
+                    show_version: '版本号',
+                    show_date: '上传日期',
+                    show_changelog: '变更记录',
+                    show_submitter: '提交人信息'
+                };
+
+                const api = async (url, options = {}) => {
+                    const headers = { ...options.headers, 'Authorization': `Bearer ${token.value}` };
+                    const res = await fetch(url, { ...options, headers });
+                    if (res.status === 401) logout();
+                    return res;
+                };
+
+                const doLogin = async () => {
+                    if(!loginForm.value.username || !loginForm.value.password) return alert('请输入完整');
+                    const formData = new FormData();
+                    formData.append('username', loginForm.value.username);
+                    formData.append('password', loginForm.value.password);
+                    
+                    try {
+                        const res = await fetch('/token', { method: 'POST', body: formData });
+                        if (res.ok) {
+                            const data = await res.json();
+                            token.value = data.access_token;
+                            role.value = data.role;
+                            currentUser.value = loginForm.value.username;
+                            
+                            // 持久化存储，防止刷新丢失
+                            localStorage.setItem('token', data.access_token);
+                            localStorage.setItem('role', data.role);
+                            localStorage.setItem('username', loginForm.value.username);
+                            
+                            loadData();
+                        } else {
+                            alert('登录失败：用户名或密码错误');
+                        }
+                    } catch(e) { alert('服务器连接失败'); }
+                };
+
+                const logout = () => {
+                    token.value = '';
+                    localStorage.clear();
+                    role.value = '';
+                    currentUser.value = '';
+                    location.reload();
+                };
+
+                const loadData = async () => {
+                    if (!token.value) return;
+                    try {
+                        const s = await api('/api/public/config').then(r => r.json());
+                        settings.value = s;
+                        const f = await api('/api/public/files').then(r => r.json());
+                        files.value = f;
+                    } catch(e) { console.error("加载数据失败", e); }
+                };
+
+                const saveSettings = async () => {
+                    await api('/api/admin/settings', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify(settings.value)
+                    });
+                };
+
+                const handleFileChange = (e) => {
+                    selectedFile.value = e.target.files[0];
+                };
+
+                const uploadFile = async () => {
+                    if (!selectedFile.value) return alert('请先选取文件');
+                    
+                    uploading.value = true;
+                    const fd = new FormData();
+                    fd.append('file', selectedFile.value);
+                    fd.append('version', uploadForm.value.version);
+                    fd.append('changelog', uploadForm.value.changelog);
+
+                    try {
+                        const res = await api('/api/upload', { method: 'POST', body: fd });
+                        if (res.ok) {
+                            alert('发布成功！');
+                            selectedFile.value = null;
+                            uploadForm.value = { version: '', changelog: '' };
+                            loadData();
+                        } else {
+                            alert('上传失败，请检查文件大小限制或网络');
+                        }
+                    } catch(e) { alert('上传发生异常'); }
+                    finally { uploading.value = false; }
+                };
+
+                const createUser = async () => {
+                    if(!userForm.value.username || !userForm.value.password) return alert('请填写完整');
+                    const res = await api('/api/admin/users', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify(userForm.value)
+                    });
+                    if (res.ok) {
+                        alert('内部成员账号创建成功');
+                        userForm.value = {username:'', password:''};
+                    } else {
+                        const d = await res.json();
+                        alert(d.detail);
+                    }
+                };
+
+                const deleteFile = async (id) => {
+                    if(!confirm('确定要删除该发布记录吗？物理文件也将被移除。')) return;
+                    const res = await api(`/api/admin/files/${id}`, { method: 'DELETE' });
+                    if (res.ok) loadData();
+                    else alert('删除失败，可能权限不足');
+                }
+
+                onMounted(loadData);
+
+                return { 
+                    token, loginForm, doLogin, logout, 
+                    uploadForm, userForm, fileInput, uploading, uploadFile,
+                    settings, saveSettings, createUser, files, deleteFile, 
+                    role, currentUser, settingMap, selectedFile, handleFileChange
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
