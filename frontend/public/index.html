@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>固件下载中心</title>
+    <title>资源中心</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
@@ -10,14 +10,15 @@
 </head>
 <body class="bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 transition-colors duration-300">
     <div id="app" class="min-h-screen py-10 px-4">
-        <div class="max-w-6xl mx-auto">
-            <div class="flex justify-between items-end mb-10">
+        <div class="max-w-7xl mx-auto"> <div class="flex justify-between items-end mb-10">
                 <div>
-                    <h1 class="text-4xl font-black text-slate-900 dark:text-white tracking-tighter flex items-center gap-3"><i class="ri-cloud-windy-line text-blue-600"></i> RD Download Center</h1>
-                    <p class="text-slate-500 dark:text-slate-400 mt-2 font-bold text-lg">研发资源分发平台</p>
+                    <h1 class="text-4xl font-black text-slate-900 dark:text-white tracking-tighter flex items-center gap-3">
+                        <i class="ri-cloud-windy-line text-blue-600"></i> {{ config.site_title || 'RD Download Center' }}
+                    </h1>
+                    <p class="text-slate-500 dark:text-slate-400 mt-2 font-bold text-lg">{{ config.site_subtitle || '研发资源分发平台' }}</p>
                 </div>
                 <div class="flex items-center gap-4">
-                    <button @click="toggleDark" class="w-12 h-12 flex items-center justify-center rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm text-slate-500 transition hover:scale-105"><i :class="isDark?'ri-sun-line text-yellow-500 text-xl':'ri-moon-line text-xl'"></i></button>
+                    <button @click="toggleDark" class="w-12 h-12 flex items-center justify-center rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm text-slate-500 hover:scale-105 transition"><i :class="isDark?'ri-sun-line text-yellow-500 text-xl':'ri-moon-line text-xl'"></i></button>
                     <div class="relative">
                         <i class="ri-search-line absolute left-4 top-3.5 text-slate-400"></i>
                         <input v-model="search" placeholder="搜索资源..." class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl pl-10 pr-4 py-3 font-bold focus:ring-2 focus:ring-blue-500 outline-none shadow-sm w-72 transition">
@@ -26,54 +27,121 @@
             </div>
 
             <div class="bg-white dark:bg-slate-800 rounded-[40px] shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden min-h-[500px]">
-                <div v-if="loading" class="p-20 text-center text-slate-400 font-bold"><i class="ri-loader-4-line animate-spin mr-2"></i> 加载中...</div>
+                <div v-if="loading" class="p-20 text-center text-slate-400 font-bold"><i class="ri-loader-4-line animate-spin mr-2"></i> 资源加载中...</div>
                 <div v-else-if="filteredFiles.length === 0" class="p-20 text-center text-slate-400 font-bold text-xl opacity-50">暂无相关资源</div>
+                
                 <table v-else class="w-full text-left">
                     <thead class="bg-slate-50 dark:bg-slate-900/50 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                        <tr><th class="px-10 py-6">资源名称</th><th v-if="config.show_version" class="px-10 py-6">版本</th><th v-if="config.show_date" class="px-10 py-6">日期</th><th v-if="config.show_submitter" class="px-10 py-6">发布人</th><th class="px-10 py-6 text-right">获取</th></tr>
+                        <tr>
+                            <th class="px-8 py-5 w-1/3">资源名称</th>
+                            <th v-if="config.show_version" class="px-8 py-5">版本</th>
+                            <th v-if="config.show_date" class="px-8 py-5">日期</th>
+                            <th v-if="config.show_submitter" class="px-8 py-5">发布人</th>
+                            <th class="px-8 py-5 text-right">下载操作</th>
+                        </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
                         <tr v-for="f in filteredFiles" :key="f.id" class="hover:bg-blue-50/20 dark:hover:bg-blue-900/10 transition group">
-                            <td class="px-10 py-6">
-                                <div class="flex items-center gap-6">
-                                    <div :class="getIconBg(f.name)" class="w-14 h-14 rounded-2xl flex-shrink-0 flex items-center justify-center text-2xl shadow-sm transition group-hover:scale-110"><i :class="getFileIcon(f.name)"></i></div>
+                            <td class="px-8 py-6">
+                                <div class="flex items-center gap-4">
+                                    <div :class="getIconBg(f.name)" class="w-12 h-12 rounded-2xl flex-shrink-0 flex items-center justify-center text-xl shadow-sm"><i :class="getFileIcon(f.name)"></i></div>
                                     <div>
-                                        <div class="font-black text-slate-800 dark:text-slate-100 text-lg">{{ f.name }}</div>
+                                        <div class="font-black text-slate-800 dark:text-slate-100 text-base break-all">{{ f.name }}</div>
                                         <div v-if="config.show_md5 && f.md5" class="text-[10px] font-mono text-slate-400 mt-1 bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded-md inline-block">MD5: {{ f.md5 }}</div>
-                                        <div v-if="config.show_changelog && f.changelog" class="text-xs text-slate-500 dark:text-slate-400 mt-2 font-medium opacity-80"><i class="ri-git-commit-line mr-1"></i>{{ f.changelog }}</div>
+                                        <div v-if="config.show_changelog && f.changelog" class="text-xs text-slate-500 dark:text-slate-400 mt-2 font-medium opacity-80 max-w-md line-clamp-2">{{ f.changelog }}</div>
                                     </div>
                                 </div>
                             </td>
-                            <td v-if="config.show_version" class="px-10 py-6"><span v-if="f.version" class="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 px-3 py-1.5 rounded-xl text-xs font-black shadow-sm">{{ f.version }}</span></td>
-                            <td v-if="config.show_date" class="px-10 py-6 text-sm font-bold text-slate-500">{{ f.date }}</td>
-                            <td v-if="config.show_submitter" class="px-10 py-6"><div class="flex items-center gap-2"><div class="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-xs font-black">{{ f.submitter[0] }}</div><span class="text-sm font-bold text-slate-600 dark:text-slate-400">{{ f.submitter }}</span></div></td>
-                            <td class="px-10 py-6 text-right"><a :href="f.url" download class="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-700 text-slate-400 hover:bg-blue-600 hover:text-white dark:hover:bg-blue-600 transition shadow-sm group-hover:shadow-md"><i class="ri-download-cloud-2-line text-2xl"></i></a></td>
+                            
+                            <td v-if="config.show_version" class="px-8 py-6">
+                                <span v-if="f.version" class="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 px-3 py-1.5 rounded-xl text-xs font-black shadow-sm whitespace-nowrap">{{ f.version }}</span>
+                            </td>
+                            
+                            <td v-if="config.show_date" class="px-8 py-6 text-sm font-bold text-slate-500 whitespace-nowrap">{{ f.date }}</td>
+                            
+                            <td v-if="config.show_submitter" class="px-8 py-6">
+                                <div class="flex items-center gap-2">
+                                    <div class="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-xs font-black">{{ f.submitter ? f.submitter[0] : '?' }}</div>
+                                    <span class="text-sm font-bold text-slate-600 dark:text-slate-400">{{ f.submitter }}</span>
+                                </div>
+                            </td>
+                            
+                            <td class="px-8 py-6 text-right">
+                                <button @click="confirmDownload(f)" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold transition shadow-lg shadow-blue-500/30 active:scale-95 whitespace-nowrap">
+                                    <i class="ri-download-cloud-2-line text-lg"></i>
+                                    <span>下载</span>
+                                </button>
+                            </td>
                         </tr>
                     </tbody>
                 </table>
             </div>
-            <footer class="text-center mt-12 opacity-50 hover:opacity-100 transition"><a href="/admin/" target="_blank" class="text-xs font-black text-slate-300 hover:text-blue-500 uppercase tracking-widest">Admin Access</a></footer>
+            <footer class="text-center mt-12 opacity-50 hover:opacity-100 transition"><a href="/admin/" target="_blank" class="text-xs font-black text-slate-300 hover:text-blue-500 uppercase tracking-widest">Admin Portal</a></footer>
         </div>
     </div>
+
     <script>
         const { createApp, ref, computed, onMounted } = Vue;
         createApp({
             setup() {
                 const isDark = ref(localStorage.getItem('theme') === 'dark');
-                const config = ref({});
+                const config = ref({ site_title: 'RD Download Center', site_subtitle: '研发资源分发平台', show_version:true, show_date:true, show_submitter:true });
                 const files = ref([]);
                 const loading = ref(true);
                 const search = ref("");
 
                 const toggleDark = () => { isDark.value = !isDark.value; document.documentElement.classList.toggle('dark'); localStorage.setItem('theme', isDark.value?'dark':'light'); };
-                const getFileIcon = (n) => { if(n==='Image'||n==='zImage')return 'ri-pulse-line'; const e=n.split('.').pop().toLowerCase(); if(['bin','hex'].includes(e))return 'ri-cpu-line'; if(e==='img')return 'ri-disc-line'; if(['zip','rar','7z'].includes(e))return 'ri-file-zip-line'; return 'ri-file-3-line'; };
-                const getIconBg = (n) => { if(n==='Image'||n==='zImage')return 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400'; const e=n.split('.').pop().toLowerCase(); if(['bin','img','hex'].includes(e))return 'bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400'; return 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400'; };
+                
+                const getFileIcon = (n) => { 
+                    if(n==='Image'||n==='zImage')return 'ri-pulse-line'; 
+                    const e=n.split('.').pop().toLowerCase(); 
+                    if(['bin','hex'].includes(e))return 'ri-cpu-line'; 
+                    if(e==='img')return 'ri-disc-line'; 
+                    if(['zip','rar','7z'].includes(e))return 'ri-file-zip-line'; 
+                    return 'ri-file-3-line'; 
+                };
+                const getIconBg = (n) => { 
+                    if(n==='Image'||n==='zImage')return 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400'; 
+                    const e=n.split('.').pop().toLowerCase(); 
+                    if(['bin','img','hex'].includes(e))return 'bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400'; 
+                    return 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400'; 
+                };
 
-                const loadData = async () => { try { const [c, f] = await Promise.all([fetch('/api/public/config').then(r=>r.json()), fetch('/api/public/files').then(r=>r.json())]); config.value = c; files.value = f; } finally { loading.value = false; } };
-                const filteredFiles = computed(() => { if(!search.value) return files.value; const s = search.value.toLowerCase(); return files.value.filter(f => f.name.toLowerCase().includes(s)); });
+                const loadData = async () => { 
+                    try { 
+                        const ts = Date.now();
+                        const c = await fetch(`/api/public/config?t=${ts}`).then(r=>r.json());
+                        if(c) config.value = c;
+                        const f = await fetch(`/api/public/files?t=${ts}`).then(r=>r.json());
+                        if(f) files.value = f;
+                    } catch(e){ console.error(e); } 
+                    finally { loading.value = false; } 
+                };
+                
+                const filteredFiles = computed(() => { 
+                    if(!search.value) return files.value; 
+                    const s = search.value.toLowerCase(); 
+                    return files.value.filter(f => f.name.toLowerCase().includes(s)); 
+                });
+
+		const confirmDownload = (f) => {
+                // 1. 防御性检查：如果 url 缺失，则手动拼接
+                const downloadUrl = f.url || `/files/${f.name}`;
+                
+                    if(confirm(`确认下载文件：\n${f.name}\n\n注意：下载开始后请勿刷新页面。`)) {
+                    // 2. 使用更稳定的下载触发方式
+                        const link = document.createElement('a');
+                        link.href = downloadUrl;
+                        link.setAttribute('download', f.name);
+                        link.style.display = 'none';
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                   }
+                };
 
                 onMounted(() => { if(isDark.value) document.documentElement.classList.add('dark'); loadData(); });
-                return { isDark, toggleDark, config, files, loading, search, filteredFiles, getFileIcon, getIconBg };
+                return { isDark, toggleDark, config, files, loading, search, filteredFiles, getFileIcon, getIconBg, confirmDownload };
             }
         }).mount('#app');
     </script>

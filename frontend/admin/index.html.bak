@@ -31,7 +31,7 @@
                     <button @click="tab='files'" :class="tab==='files'?'bg-blue-600 text-white shadow-lg':'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700'" class="w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition font-bold"><i class="ri-folder-6-line"></i> 资源管理</button>
                     <button @click="tab='upload'" :class="tab==='upload'?'bg-blue-600 text-white shadow-lg':'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700'" class="w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition font-bold"><i class="ri-upload-cloud-2-line"></i> 发布固件</button>
                     <button v-if="role==='admin'" @click="tab='users'" :class="tab==='users'?'bg-blue-600 text-white shadow-lg':'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700'" class="w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition font-bold"><i class="ri-team-line"></i> 成员授权</button>
-                    <button v-if="role==='admin'" @click="tab='cfg'" :class="tab==='cfg'?'bg-blue-600 text-white shadow-lg':'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700'" class="w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition font-bold"><i class="ri-layout-settings-line"></i> 前端显示配置</button>
+                    <button v-if="role==='admin'" @click="tab='cfg'" :class="tab==='cfg'?'bg-blue-600 text-white shadow-lg':'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700'" class="w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition font-bold"><i class="ri-layout-settings-line"></i> 前端配置</button>
                     <button @click="tab='pass'" :class="tab==='pass'?'bg-blue-600 text-white shadow-lg':'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700'" class="w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition font-bold"><i class="ri-shield-keyhole-line"></i> 安全中心</button>
                 </nav>
                 <div class="p-6 border-t border-slate-50 dark:border-slate-700"><button @click="logout" class="w-full py-4 text-red-500 bg-red-50 dark:bg-red-900/20 rounded-2xl font-bold hover:bg-red-100 transition">退出登录</button></div>
@@ -84,30 +84,6 @@
                         </div>
                     </div>
 
-                    <div v-if="editModal.show" class="fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center backdrop-blur-sm p-4">
-                        <div class="bg-white dark:bg-slate-800 rounded-[32px] w-full max-w-lg p-8 shadow-2xl border border-slate-100 dark:border-slate-700">
-                            <h3 class="text-xl font-black mb-6 flex items-center gap-2"><i class="ri-file-edit-line text-blue-500"></i> 编辑文件信息</h3>
-                            <div class="space-y-6">
-                                <div>
-                                    <label class="block text-xs font-bold text-slate-400 uppercase mb-2">文件名 (不可修改)</label>
-                                    <div class="w-full p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl font-mono text-sm text-slate-600 dark:text-slate-300 border border-transparent border-slate-100 dark:border-slate-800">{{editModal.data.name}}</div>
-                                </div>
-                                <div>
-                                    <label class="block text-xs font-bold text-slate-400 uppercase mb-2">版本号</label>
-                                    <input v-model="editModal.form.version" placeholder="例如 v1.0.1" class="w-full p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 transition">
-                                </div>
-                                <div>
-                                    <label class="block text-xs font-bold text-slate-400 uppercase mb-2">变更记录</label>
-                                    <textarea v-model="editModal.form.changelog" placeholder="请输入变更详情..." class="w-full p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 h-32 transition resize-none"></textarea>
-                                </div>
-                            </div>
-                            <div class="flex gap-4 mt-8">
-                                <button @click="editModal.show=false" class="flex-1 py-4 font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-2xl transition">取消</button>
-                                <button @click="saveEdit" class="flex-1 py-4 bg-blue-600 text-white font-bold rounded-2xl hover:bg-blue-700 transition shadow-lg shadow-blue-500/30">保存修改</button>
-                            </div>
-                        </div>
-                    </div>
-
                     <div v-if="tab==='cfg'" class="grid grid-cols-1 md:grid-cols-2 gap-8">
                         <div class="bg-white dark:bg-slate-800 p-10 rounded-[40px] border border-slate-200 dark:border-slate-700 shadow-sm">
                             <h3 class="font-black text-xl mb-6">显示开关</h3>
@@ -130,6 +106,30 @@
                                     <input v-model="config.site_subtitle" class="w-full p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border-0 outline-none focus:ring-2 focus:ring-blue-500 transition">
                                 </div>
                                 <button @click="saveCfg" class="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold hover:bg-blue-700 mt-4 shadow-lg shadow-blue-500/30">保存所有配置</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div v-if="editModal.show" class="fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center backdrop-blur-sm p-4">
+                        <div class="bg-white dark:bg-slate-800 rounded-[32px] w-full max-w-lg p-8 shadow-2xl">
+                            <h3 class="text-xl font-black mb-6">编辑文件</h3>
+                            <div class="space-y-5">
+                                <div>
+                                    <label class="text-xs font-bold text-slate-400 uppercase block mb-2">文件名 (不可修改)</label>
+                                    <div class="text-sm font-mono bg-slate-100 dark:bg-slate-900 p-4 rounded-xl text-slate-600 dark:text-slate-300">{{editModal.data.name}}</div>
+                                </div>
+                                <div>
+                                    <label class="text-xs font-bold text-slate-400 uppercase block mb-2">版本号</label>
+                                    <input v-model="editModal.form.version" placeholder="输入版本号..." class="w-full p-4 bg-slate-50 dark:bg-slate-900 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition">
+                                </div>
+                                <div>
+                                    <label class="text-xs font-bold text-slate-400 uppercase block mb-2">变更记录</label>
+                                    <textarea v-model="editModal.form.changelog" placeholder="输入变更记录..." class="w-full p-4 bg-slate-50 dark:bg-slate-900 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 h-32 transition resize-none"></textarea>
+                                </div>
+                            </div>
+                            <div class="flex gap-3 mt-8">
+                                <button @click="editModal.show=false" class="flex-1 py-4 font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition">取消</button>
+                                <button @click="saveEdit" class="flex-1 py-4 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition shadow-lg shadow-blue-500/30">保存修改</button>
                             </div>
                         </div>
                     </div>
@@ -197,6 +197,7 @@
                 const file = ref(null);
                 const files = ref([]);
                 const userList = ref([]);
+                // 初始化为空对象，防止 undefined 报错
                 const config = ref({ site_title: '', site_subtitle: '' });
                 const loginForm = ref({username:'', password:''});
                 const form = ref({v:'', c:''});
@@ -212,11 +213,13 @@
 
                 const api = async (u, o={}) => {
                     try {
-                        const ts = Date.now();
-                        const url = u.includes('?') ? `${u}&t=${ts}` : `${u}?t=${ts}`;
-                        const res = await fetch(url, {...o, headers: {...o.headers, 'Authorization': `Bearer ${token.value}`}});
+                        const res = await fetch(u, {...o, headers: {...o.headers, 'Authorization': `Bearer ${token.value}`}});
                         if(res.status === 401) logout();
-                        if(!res.ok) throw new Error((await res.json()).detail || 'Failed');
+                        if(!res.ok) {
+                            // 尝试解析错误信息
+                            const err = await res.json().catch(()=>({}));
+                            throw new Error(err.detail || '请求失败');
+                        }
                         return res;
                     } catch(e) { alert(e.message); throw e; }
                 };
@@ -224,6 +227,7 @@
                 const loadData = async () => {
                     if(!token.value) return;
                     files.value = await api('/api/public/files').then(r=>r.json());
+                    // 确保获取配置
                     config.value = await api('/api/public/config').then(r=>r.json());
                     if(role.value === 'admin') userList.value = await api('/api/admin/users').then(r=>r.json());
                 };
@@ -235,10 +239,20 @@
                     return res;
                 });
 
-                const openEdit = (f) => { editModal.value.data = f; editModal.value.form = {version:f.version, changelog:f.changelog}; editModal.value.show = true; };
+                const openEdit = (f) => { 
+                    editModal.value.data = f; 
+                    // 仅绑定版本和变更记录
+                    editModal.value.form = {version:f.version, changelog:f.changelog}; 
+                    editModal.value.show = true; 
+                };
+                
                 const saveEdit = async () => {
-                    if (!editModal.value.data.id) return;
-                    await api(`/api/admin/files/${editModal.value.data.id}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(editModal.value.form)});
+                    if (!editModal.value.data.id) return alert('文件ID错误');
+                    await api(`/api/admin/files/${editModal.value.data.id}`, {
+                        method: 'PUT', 
+                        headers:{'Content-Type':'application/json'}, 
+                        body:JSON.stringify(editModal.value.form)
+                    });
                     alert('修改成功'); editModal.value.show = false; loadData();
                 };
 

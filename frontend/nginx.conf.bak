@@ -1,31 +1,26 @@
 server {
     listen 80;
     client_max_body_size 500M;
-    
-    # 强制使用 UTF-8，解决中文文件名下载问题
-    charset utf-8;
 
-    # 1. 静态文件下载 (关键修复：去掉 ^~ 和 alias，改用 root)
-    # 当访问 /files/abc.img 时，Nginx 会寻找 root + uri
-    # 即 /usr/share/nginx/html + /files/abc.img
-    location /files {
-        root /usr/share/nginx/html;
-        
-        # 强制下载，不预览
+    # 1. 静态文件下载 (最优先匹配)
+    # 使用 /files/ 匹配，对应容器内的 /usr/share/nginx/html/files/
+    location /files/ {
+        root /usr/share/nginx/html; 
+        # 强制下载头
         add_header Content-Disposition "attachment";
         add_header Content-Type "application/octet-stream";
-        
-        # 关键：直接尝试文件，找不到就报404，绝不转发给 index.html
-        try_files $uri =404;
-        
         autoindex off;
+        # 关键：如果找不到文件，直接报404，不要跳回 index.html
+        try_files $uri =404;
     }
 
-    # 2. API 接口
+    # 2. API 代理
     location /api {
         proxy_pass http://backend:8000;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
+        # 禁止缓存 API 响应
+        add_header Cache-Control "no-cache, no-store, must-revalidate";
     }
 
     location /token {
@@ -39,7 +34,7 @@ server {
         try_files $uri $uri/ /admin/index.html;
     }
 
-    # 4. 公共端 (单页应用路由兜底)
+    # 4. 公共端 (兜底)
     location / {
         root /usr/share/nginx/html;
         index index.html;
