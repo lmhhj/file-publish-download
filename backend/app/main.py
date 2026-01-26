@@ -1,25 +1,28 @@
 import os
 import hashlib
-import shutil
+import logging
 from datetime import datetime, timedelta
-from typing import List, Optional
+from typing import List
 from fastapi import FastAPI, Depends, HTTPException, status, UploadFile, File, Form
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime
+from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, or_
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from passlib.context import CryptContext
 from jose import JWTError, jwt
 from pydantic import BaseModel
 
-# --- 配置 ---
+# --- 基础配置 ---
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 DATA_DIR = os.getenv("DATA_DIR", "./data")
 UPLOAD_DIR = os.path.join(DATA_DIR, "uploads")
 DB_PATH = os.path.join(DATA_DIR, "fs.db")
-SECRET_KEY = os.getenv("SECRET_KEY", "secret")
+SECRET_KEY = os.getenv("SECRET_KEY", "final_secret_key_2026")
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 # 24小时
+ACCESS_TOKEN_EXPIRE_MINUTES = 1440 
 
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
@@ -27,8 +30,7 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 Base = declarative_base()
 engine = create_engine(f"sqlite:///{DB_PATH}", connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-pwd_context = CryptContext(schemes=["pbkdf2_sha256", "bcrypt"], deprecated="auto")
+pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 class User(Base):
@@ -36,7 +38,7 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String, unique=True, index=True)
     hashed_password = Column(String)
-    role = Column(String, default="user") # admin or user
+    role = Column(String, default="user")
 
 class FileRecord(Base):
     __tablename__ = "files"
@@ -60,195 +62,143 @@ class Settings(Base):
 
 Base.metadata.create_all(bind=engine)
 
-# --- 初始化默认数据 ---
+# --- 核心修复：启动清洗与初始化 ---
 def init_db():
     db = SessionLocal()
     try:
-        # 1. 检查是否存在 admin
-        admin = db.query(User).filter(User.username == "admin").first()
+        # 1. 强力清洗：删除所有 username 为空或 None 的脏数据
+        deleted = db.query(User).filter(or_(User.username == None, User.username == "")).delete(synchronize_session=False)
+        if deleted > 0:
+            logger.warning(f">>> 已清理 {deleted} 条异常用户数据")
+            db.commit()
+
+        # 2. 确保 Admin 存在
+        if not db.query(User).filter(User.username == "admin").first():
+            logger.info(">>> 初始化 Admin 账号")
+            db.add(User(username="admin", hashed_password=pwd_context.hash("admin123"), role="admin"))
+            db.commit()
         
-        # 强制重置逻辑：如果 admin 存在，我们也更新一下它的密码哈希
-        # 这样就不需要手动删数据库了，重启即重置
-        hashed_pwd = pwd_context.hash("admin123")
-        
-        if not admin:
-            print("正在创建初始 admin 账号...")
-            db.add(User(username="admin", hashed_password=hashed_pwd, role="admin"))
-        else:
-            print("正在同步 admin 账号哈希算法...")
-            admin.hashed_password = hashed_pwd
-        
-        # 2. 默认设置
+        # 3. 确保配置存在
         if not db.query(Settings).first():
             db.add(Settings(id=1))
-        
-        db.commit()
+            db.commit()
     except Exception as e:
-        print(f"数据库初始化失败: {e}")
+        logger.error(f"DB Init Failed: {e}")
     finally:
         db.close()
 
 init_db()
-# --- Auth 工具 ---
 
+# --- 依赖项 ---
 def get_db():
     db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+    try: yield db
+    finally: db.close()
 
-def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+def get_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        username: str = payload.get("sub")
-        if username is None: raise HTTPException(status_code=401)
-    except JWTError:
-        raise HTTPException(status_code=401, detail="Could not validate credentials")
+        username = payload.get("sub")
+        if not username: raise HTTPException(status_code=401)
+    except: raise HTTPException(status_code=401)
+    
     user = db.query(User).filter(User.username == username).first()
-    if user is None: raise HTTPException(status_code=401)
+    if not user: raise HTTPException(status_code=401)
     return user
 
-def get_admin_user(current_user: User = Depends(get_current_user)):
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="权限不足")
-    return current_user
+# --- Pydantic Models ---
+class PwdUpdate(BaseModel): new_password: str
+class UserCreate(BaseModel): username: str; password: str
+class SetUpdate(BaseModel): show_md5: bool; show_date: bool; show_version: bool; show_changelog: bool; show_submitter: bool
 
-# --- Pydantic Schemas ---
-class SettingsUpdate(BaseModel):
-    show_md5: bool
-    show_date: bool
-    show_version: bool
-    show_changelog: bool
-    show_submitter: bool
-
-class UserCreate(BaseModel):
-    username: str
-    password: str
-
-# --- App ---
 app = FastAPI()
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# 1. 登录
+# --- 认证接口 ---
 @app.post("/token")
 async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     user = db.query(User).filter(User.username == form_data.username).first()
     if not user or not pwd_context.verify(form_data.password, user.hashed_password):
         raise HTTPException(status_code=400, detail="用户名或密码错误")
-    
-    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    token = jwt.encode({"sub": user.username, "exp": expire}, SECRET_KEY, algorithm=ALGORITHM)
+    token = jwt.encode({"sub": user.username, "exp": datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)}, SECRET_KEY, algorithm=ALGORITHM)
     return {"access_token": token, "token_type": "bearer", "role": user.role}
 
-# 2. 获取公共配置 (无需登录)
+# --- 公共接口 ---
 @app.get("/api/public/config")
-def get_public_config(db: Session = Depends(get_db)):
-    settings = db.query(Settings).first()
-    return settings
+def get_cfg(db: Session = Depends(get_db)): return db.query(Settings).first()
 
-# 3. 获取公共文件列表 (无需登录)
 @app.get("/api/public/files")
-def get_public_files(db: Session = Depends(get_db)):
-    settings = db.query(Settings).first()
+def list_f(db: Session = Depends(get_db)):
     files = db.query(FileRecord).order_by(FileRecord.upload_date.desc()).all()
-    
-    # 简单脱敏逻辑：如果前端不显示，后端理论上也应该根据 setting 隐藏数据，
-    # 但为了逻辑简单，这里返回全量，主要依赖前端开关控制显示。
-    # 实际生产中建议在这里根据 settings 置空字段。
-    
-    result = []
-    for f in files:
-        item = {
-            "id": f.id,
-            "name": f.filename,
-            "url": f"/files/{f.filename}",
-            # 如果配置为隐藏，虽然返回了但前端不会渲染。更安全做法是在这里判断 settings.show_md5
-            "md5": f.md5 if settings.show_md5 else None,
-            "version": f.version if settings.show_version else None,
-            "changelog": f.changelog if settings.show_changelog else None,
-            "submitter": f.submitter if settings.show_submitter else None,
-            "date": f.upload_date.strftime("%Y-%m-%d %H:%M") if settings.show_date else None
-        }
-        result.append(item)
-    return result
+    return [{"id":f.id,"name":f.filename,"md5":f.md5,"version":f.version,"changelog":f.changelog,"submitter":f.submitter,"date":f.upload_date.strftime("%Y-%m-%d %H:%M")} for f in files]
 
-# 4. 上传文件 (需登录)
 @app.post("/api/upload")
-async def upload_file(
-    file: UploadFile = File(...),
-    version: str = Form(""),
-    changelog: str = Form(""),
-    user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
+async def upload(file: UploadFile = File(...), version: str = Form(""), changelog: str = Form(""), user: User = Depends(get_user), db: Session = Depends(get_db)):
     content = await file.read()
-    md5_val = hashlib.md5(content).hexdigest()
-    
-    # 防止重名覆盖，实际生产可以使用 UUID 重命名
     save_path = os.path.join(UPLOAD_DIR, file.filename)
-    
-    # 写文件
-    with open(save_path, "wb") as f:
-        f.write(content)
-        
-    new_file = FileRecord(
-        filename=file.filename,
-        filepath=save_path,
-        md5=md5_val,
-        version=version,
-        changelog=changelog,
-        submitter=user.username,
-        upload_date=datetime.now()
-    )
-    db.add(new_file)
+    with open(save_path, "wb") as f: f.write(content)
+    db.add(FileRecord(filename=file.filename, filepath=save_path, md5=hashlib.md5(content).hexdigest(), version=version, changelog=changelog, submitter=user.username))
     db.commit()
     return {"status": "success"}
 
-# 5. 管理员：更新设置
-@app.post("/api/admin/settings")
-def update_settings(conf: SettingsUpdate, user: User = Depends(get_admin_user), db: Session = Depends(get_db)):
-    settings = db.query(Settings).first()
-    settings.show_md5 = conf.show_md5
-    settings.show_date = conf.show_date
-    settings.show_version = conf.show_version
-    settings.show_changelog = conf.show_changelog
-    settings.show_submitter = conf.show_submitter
+# --- 核心修复：密码修改 ---
+@app.put("/api/user/password")
+def change_pw(data: PwdUpdate, user: User = Depends(get_user), db: Session = Depends(get_db)):
+    # 使用 update 语句直接操作数据库，避免 ORM 对象状态同步问题
+    new_hash = pwd_context.hash(data.new_password)
+    db.query(User).filter(User.id == user.id).update({"hashed_password": new_hash})
     db.commit()
-    return {"status": "updated"}
+    return {"status": "success"}
 
-# 6. 管理员：创建账号
+# --- 管理员接口 ---
+@app.get("/api/admin/users")
+def list_users(user: User = Depends(get_user), db: Session = Depends(get_db)):
+    if user.role != "admin": raise HTTPException(status_code=403)
+    # 过滤掉任何可能的脏数据
+    return db.query(User).filter(User.username != None, User.username != "").all()
+
 @app.post("/api/admin/users")
-def create_user(new_user: UserCreate, user: User = Depends(get_admin_user), db: Session = Depends(get_db)):
-    if db.query(User).filter(User.username == new_user.username).first():
-        raise HTTPException(status_code=400, detail="用户已存在")
-    hashed = pwd_context.hash(new_user.password)
-    db.add(User(username=new_user.username, hashed_password=hashed))
-    db.commit()
-    return {"status": "created"}
-
-# 7. 管理员：删除文件
-@app.delete("/api/admin/files/{file_id}")
-def delete_file(file_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    # 允许 admin 或提交人删除
-    file_record = db.query(FileRecord).filter(FileRecord.id == file_id).first()
-    if not file_record:
-        raise HTTPException(status_code=404, detail="文件不存在")
+def create_u(data: UserCreate, user: User = Depends(get_user), db: Session = Depends(get_db)):
+    if user.role != 'admin': raise HTTPException(status_code=403)
+    if not data.username or not data.password: raise HTTPException(status_code=400, detail="信息不完整")
+    if db.query(User).filter(User.username == data.username).first(): raise HTTPException(status_code=400, detail="用户已存在")
     
-    if user.role != "admin" and file_record.submitter != user.username:
-        raise HTTPException(status_code=403, detail="无权删除")
-        
-    # 删除物理文件
-    if os.path.exists(file_record.filepath):
-        os.remove(file_record.filepath)
-        
-    db.delete(file_record)
+    db.add(User(username=data.username, hashed_password=pwd_context.hash(data.password), role="user"))
     db.commit()
-    return {"status": "deleted"}
+    return {"status": "success"}
+
+@app.delete("/api/admin/users/{uid}")
+def delete_u(uid: int, user: User = Depends(get_user), db: Session = Depends(get_db)):
+    if user.role != "admin": raise HTTPException(status_code=403)
+    target = db.query(User).filter(User.id == uid).first()
+    if target and target.username != "admin":
+        db.delete(target)
+        db.commit()
+    return {"status": "success"}
+
+@app.put("/api/admin/users/{uid}/reset")
+def reset_pw(uid: int, data: PwdUpdate, user: User = Depends(get_user), db: Session = Depends(get_db)):
+    if user.role != "admin": raise HTTPException(status_code=403)
+    # 同样使用 update 语句直接操作
+    new_hash = pwd_context.hash(data.new_password)
+    db.query(User).filter(User.id == uid).update({"hashed_password": new_hash})
+    db.commit()
+    return {"status": "success"}
+
+@app.post("/api/admin/settings")
+def set_cfg(data: SetUpdate, user: User = Depends(get_user), db: Session = Depends(get_db)):
+    if user.role != 'admin': raise HTTPException(status_code=403)
+    s = db.query(Settings).first()
+    for k,v in data.dict().items(): setattr(s, k, v)
+    db.commit()
+    return {"status": "success"}
+
+@app.delete("/api/admin/files/{fid}")
+def del_f(fid: int, user: User = Depends(get_user), db: Session = Depends(get_db)):
+    f = db.query(FileRecord).filter(FileRecord.id == fid).first()
+    if not f: raise HTTPException(status_code=404)
+    if user.role != 'admin' and f.submitter != user.username: raise HTTPException(status_code=403)
+    if os.path.exists(f.filepath): os.remove(f.filepath)
+    db.delete(f)
+    db.commit()
+    return {"status": "success"}
