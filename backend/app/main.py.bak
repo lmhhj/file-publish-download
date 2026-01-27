@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 DATA_DIR = os.getenv("DATA_DIR", "./data")
 UPLOAD_DIR = os.path.join(DATA_DIR, "uploads")
 DB_PATH = os.path.join(DATA_DIR, "fs.db")
-SECRET_KEY = os.getenv("SECRET_KEY", "fixed_key_2026_final_v5")
+SECRET_KEY = os.getenv("SECRET_KEY", "fixed_key_2026_final_v4")
 ALGORITHM = "HS256"
 
 os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -59,7 +59,7 @@ class Settings(Base):
     show_changelog = Column(Boolean, default=True)
     show_submitter = Column(Boolean, default=True)
     show_git_commit = Column(Boolean, default=True)
-    site_title = Column(String, default="硬件资源下载站点")
+    site_title = Column(String, default="RD Download Center")
     site_subtitle = Column(String, default="研发资源分发平台")
 
 Base.metadata.create_all(bind=engine)
@@ -67,31 +67,24 @@ Base.metadata.create_all(bind=engine)
 def init_db():
     db = SessionLocal()
     try:
-        # 1. 字段迁移
-        for cmd in [
-            "ALTER TABLE settings ADD COLUMN show_git_commit BOOLEAN DEFAULT 1",
-            "ALTER TABLE files ADD COLUMN filesize INTEGER DEFAULT 0"
-        ]:
-            try: db.execute(text(cmd)); db.commit()
-            except: db.rollback()
-        
-        # 2. 修复配置数据（防止上传者等开关为Null）
-        s = db.query(Settings).first()
-        if not s:
-            db.add(Settings(id=1))
-        else:
-            for field in ['show_md5','show_date','show_version','show_changelog','show_submitter','show_git_commit']:
-                if getattr(s, field) is None: setattr(s, field, True)
-        
-        # 3. 基础数据
+        try: db.execute(text("ALTER TABLE settings ADD COLUMN show_git_commit BOOLEAN DEFAULT 1")); db.commit()
+        except: pass
+        try: db.execute(text("ALTER TABLE files ADD COLUMN filesize INTEGER DEFAULT 0")); db.commit()
+        except: pass
+        db.execute(text("UPDATE files SET folder_id = 0 WHERE folder_id IS NULL")); db.commit()
+        to_fix = db.query(FileRecord).filter(FileRecord.filesize == 0).all()
+        for f in to_fix:
+            if os.path.exists(f.filepath): f.filesize = os.path.getsize(f.filepath)
+        db.commit()
         if not db.query(User).filter(User.username == "admin").first():
             db.add(User(username="admin", hashed_password=pwd_context.hash("admin123"), role="admin"))
+        if not db.query(Settings).first(): db.add(Settings(id=1))
         db.commit()
-    finally:
-        db.close()
+    finally: db.close()
 
 init_db()
 
+# --- 依赖项 (严格修正语法错误) ---
 def get_db():
     db = SessionLocal()
     try:
@@ -113,7 +106,8 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = 
     user = db.query(User).filter(User.username == form_data.username).first()
     if not user or not pwd_context.verify(form_data.password, user.hashed_password):
         raise HTTPException(status_code=400)
-    return {"access_token": jwt.encode({"sub": user.username}, SECRET_KEY), "token_type": "bearer", "role": user.role}
+    token = jwt.encode({"sub": user.username}, SECRET_KEY)
+    return {"access_token": token, "token_type": "bearer", "role": user.role}
 
 @app.get("/api/public/data")
 def get_data(db: Session = Depends(get_db)):
@@ -124,7 +118,7 @@ def get_data(db: Session = Depends(get_db)):
         "date": f.upload_date.strftime("%Y-%m-%d %H:%M"), "folder_id": f.folder_id or 0,
         "size": f.filesize
     } for f in db.query(FileRecord).order_by(FileRecord.upload_date.desc()).all()]
-    folders = [{"id": f.id, "name": f.name, "parent_id": f.parent_id or 0} for f in db.query(Folder).all()]
+    folders = [{"id": f.id, "name": f.name, "parent_id": f.parent_id or 0, "creator": f.creator} for f in db.query(Folder).all()]
     return {"files": files, "folders": folders, "config": db.query(Settings).first()}
 
 @app.post("/api/admin/folders")
