@@ -31,18 +31,16 @@
             <div class="bg-white dark:bg-slate-800 rounded-[28px] shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden min-h-[500px]">
                 <table class="w-full text-left">
                     <thead class="bg-slate-50 dark:bg-slate-900/50 text-[10px] font-black uppercase tracking-widest text-slate-400">
-                        <tr><th class="px-8 py-5">名称与说明</th><th v-if="config.show_version" class="px-8 py-5">版本/Git</th><th v-if="config.show_date" class="px-8 py-5">日期</th><th v-if="config.show_submitter" class="px-8 py-5">发布人</th><th class="px-8 py-5 text-right">下载</th></tr>
+                        <tr><th class="px-8 py-5">名称与描述</th><th v-if="config.show_version" class="px-8 py-5">版本/Git</th><th v-if="config.show_date" class="px-8 py-5">日期</th><th v-if="config.show_submitter" class="px-8 py-5">发布人</th><th class="px-8 py-5 text-right">下载</th></tr>
                     </thead>
                     <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
                         <tr v-if="currentFolderId!==0 && !search" @click="goUp" class="hover:bg-slate-50 dark:hover:bg-slate-900 cursor-pointer text-slate-400 transition"><td colspan="5" class="px-8 py-3 font-black text-xs flex items-center gap-2"><i class="ri-arrow-go-back-line"></i> 返回上一层</td></tr>
                         
                         <tr v-for="f in displayFolders" @click="navTo(f.id)" class="hover:bg-amber-50/20 cursor-pointer group transition">
                             <td colspan="5" class="px-8 py-4 flex items-center gap-4">
-                                <div :class="f.parent_id === 0 ? 'bg-amber-100 text-amber-500' : 'bg-slate-100 text-slate-400'" class="w-11 h-11 rounded-xl flex items-center justify-center text-2xl shadow-sm transition group-hover:scale-105">
-                                    <i :class="f.parent_id === 0 ? 'ri-folder-3-fill' : 'ri-folder-open-line'"></i>
-                                </div>
+                                <div :class="f.parent_id === 0 ? 'bg-amber-100 text-amber-500' : 'bg-slate-100 text-slate-400'" class="w-11 h-11 rounded-xl flex items-center justify-center text-2xl shadow-sm transition group-hover:scale-105"><i :class="f.parent_id === 0 ? 'ri-folder-3-fill' : 'ri-folder-open-line'"></i></div>
                                 <div>
-                                    <div :class="f.parent_id===0 ? 'text-lg' : 'text-sm'" class="font-black text-slate-800 dark:text-slate-100">{{ f.name }}</div>
+                                    <div :class="f.parent_id===0 ? 'text-lg' : 'text-sm'" class="font-black text-slate-800 dark:text-slate-100 uppercase">{{ f.name }}</div>
                                     <div v-if="search" class="text-[8px] text-blue-400 font-black mt-1 uppercase">{{ getPath(f.id) }}</div>
                                 </div>
                                 <i class="ri-arrow-right-s-line ml-auto text-slate-200 text-2xl group-hover:text-amber-500 transition"></i>
@@ -54,10 +52,8 @@
                                 <div class="flex items-center gap-4">
                                     <div :class="getIconBg(f.name)" class="w-10 h-10 rounded-xl flex items-center justify-center text-xl shadow-sm transition group-hover:rotate-3"><i :class="getFileIcon(f.name)"></i></div>
                                     <div class="min-w-0">
-                                        <div class="font-black text-slate-800 dark:text-slate-100 text-sm">
-                                            {{ f.name }} <span class="ml-1 text-[8px] text-slate-400 font-normal">({{ formatSize(f.size) }})</span>
-                                        </div>
-                                        <div v-if="config.show_changelog && f.changelog" class="text-xs text-slate-400 font-bold mt-0.5 line-clamp-1 italic"># {{ f.changelog }}</div>
+                                        <div class="font-black text-slate-800 dark:text-slate-100 text-sm">{{ f.name }} <span class="ml-1 text-[8px] text-slate-400 font-normal">({{ formatSize(f.size) }})</span></div>
+                                        <div v-if="config.show_changelog && f.changelog" class="text-xs text-slate-400 dark:text-slate-500 mt-0.5 font-bold italic line-clamp-1"># {{ f.changelog }}</div>
                                         <div v-if="config.show_md5" class="text-[8px] font-mono text-slate-300 mt-0.5 uppercase tracking-tighter">MD5: {{ f.md5 }}</div>
                                         <div v-if="search" class="text-[8px] text-blue-400 font-black mt-1 uppercase">{{ getPath(f.folder_id) }}</div>
                                     </div>
@@ -72,7 +68,7 @@
                             <td v-if="config.show_date" class="px-8 py-4 text-xs font-bold text-slate-500 whitespace-nowrap">{{ f.date.split(' ')[0] }}</td>
                             <td v-if="config.show_submitter" class="px-8 py-4"><div class="flex items-center gap-2"><div class="w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-600 flex items-center justify-center text-[10px] font-black uppercase">{{ f.submitter[0] }}</div><span class="text-xs font-bold text-slate-600">{{ f.submitter }}</span></div></td>
                             <td class="px-8 py-4 text-right">
-                                <button @click="dl(f)" :disabled="f.downloading" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-1.5 rounded-xl font-black shadow-lg transition active:scale-95 min-w-[80px] relative overflow-hidden text-[10px]">
+                                <button @click="dl(f)" :disabled="f.downloading" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-xl font-black shadow-lg transition active:scale-95 min-w-[80px] relative overflow-hidden text-[10px]">
                                     <div v-if="f.downloading" class="absolute inset-0 bg-blue-800 transition-all" :style="{width: f.progress + '%'}"></div>
                                     <span class="relative z-10">{{ f.downloading ? f.progress + '%' : '下载' }}</span>
                                 </button>
@@ -110,14 +106,12 @@
                 });
                 const breadcrumbs = computed(() => {
                     const path = []; let curr = allFolders.value.find(f => f.id === currentFolderId.value);
-                    while(curr) { path.unshift(curr); curr = allFolders.value.find(f => f.id === curr.parent_id); }
-                    return path;
+                    while(curr) { path.unshift(curr); curr = allFolders.value.find(f => f.id === curr.parent_id); } return path;
                 });
                 const getPath = (fid) => {
                     const path = []; let curr = allFolders.value.find(f => f.id === fid);
                     while(curr && curr.parent_id !== 0) { path.unshift(curr.name); curr = allFolders.value.find(f => f.id === curr.parent_id); }
-                    if(curr) path.unshift(curr.name);
-                    return '路径: /' + path.join('/'); // 修复路径显示
+                    if(curr) path.unshift(curr.name); return '路径: /' + path.join('/');
                 };
 
                 const navTo = (id) => { currentFolderId.value = id; search.value = ""; };
@@ -136,8 +130,7 @@
                         }
                         f.downloading = false;
                     };
-                    xhr.onerror = () => { alert('失败'); f.downloading = false; };
-                    xhr.send();
+                    xhr.onerror = () => { alert('失败'); f.downloading = false; }; xhr.send();
                 };
 
                 const toggleDark = () => { isDark.value = !isDark.value; document.documentElement.classList.toggle('dark'); localStorage.setItem('theme', isDark.value?'dark':'light'); };
