@@ -71,7 +71,20 @@
                             <div class="space-y-1"><label class="text-[10px] font-black text-slate-400 px-2 uppercase">代理 URL</label><input v-model="config.wechat_proxy_url" class="w-full p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border-0 font-bold"></div>
                         </div>
                         <div class="mt-8 space-y-1"><label class="text-[10px] font-black text-slate-400 px-2 uppercase">推送白名单 (UserID, @all 为全员)</label><textarea v-model="config.wechat_whitelist" class="w-full p-5 bg-slate-50 dark:bg-slate-900 rounded-[32px] border-0 font-bold h-24 outline-none focus:ring-2 focus:ring-blue-500/10"></textarea></div>
-                    </div>
+                   	<div class="mt-8 space-y-1">
+    <label class="text-[10px] font-black text-slate-400 uppercase px-2">通知内容模板</label>
+    <textarea v-model="config.wechat_template" 
+              class="w-full p-5 bg-slate-50 dark:bg-slate-900 rounded-[32px] border-0 font-bold h-32 outline-none focus:ring-2 focus:ring-blue-500/20" 
+              placeholder="{{user}} 在 {{path}} 发布了 {{filename}}..."></textarea>
+    <p class="text-[9px] text-slate-400 px-2 mt-1">
+        支持变量：<span class="font-mono text-blue-500">{{user}}</span> (人), 
+        <span class="font-mono text-blue-500">{{path}}</span> (目录), 
+        <span class="font-mono text-blue-500">{{filename}}</span> (文件), 
+        <span class="font-mono text-blue-500">{{version}}</span> (版本), 
+        <span class="font-mono text-blue-500">{{changelog}}</span> (修改内容)
+    </p>
+</div>
+		    </div>
 
                     <div v-if="tab==='files'" class="space-y-6">
                         <div class="flex flex-wrap justify-between items-center bg-white dark:bg-slate-800 p-4 rounded-3xl border dark:border-slate-700 gap-4 shadow-sm">

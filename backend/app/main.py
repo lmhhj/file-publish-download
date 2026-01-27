@@ -4,7 +4,7 @@ from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.backends import default_backend
 from datetime import datetime, timedelta
 from typing import List, Optional
-from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form, Query
+from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form, Query, BackgroundTasks
 from fastapi.responses import PlainTextResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.middleware.cors import CORSMiddleware
@@ -75,6 +75,7 @@ class Settings(Base):
     wechat_aes_key = Column(String, default="")
     wechat_proxy_url = Column(String, default="https://qyapi.weixin.qq.com")
     wechat_whitelist = Column(String, default="")
+    wechat_template = Column(String, default="{{user}} 在 {{path}} 目录发布了 {{filename}} 文件\n版本：{{version}}\n修改记录：{{changelog}}")
 
 Base.metadata.create_all(bind=engine)
 
@@ -116,7 +117,8 @@ def init_db():
             "ALTER TABLE settings ADD COLUMN wechat_aes_key VARCHAR DEFAULT ''",
             "ALTER TABLE settings ADD COLUMN wechat_proxy_url VARCHAR DEFAULT 'https://qyapi.weixin.qq.com'",
             "ALTER TABLE settings ADD COLUMN wechat_whitelist VARCHAR DEFAULT ''",
-            "ALTER TABLE files ADD COLUMN filesize INTEGER DEFAULT 0"
+            "ALTER TABLE files ADD COLUMN filesize INTEGER DEFAULT 0",
+            "ALTER TABLE settings ADD COLUMN wechat_template TEXT DEFAULT '{{user}} 在 {{path}} 目录发布了 {{filename}} 文件\n版本：{{version}}\n修改记录：{{changelog}}'"
         ]
         for cmd in migrations:
             try: db.execute(text(cmd)); db.commit()
@@ -149,6 +151,44 @@ def get_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db))
 
 app = FastAPI()
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+
+def get_folder_path(folder_id: int, db: Session) -> str:
+    if folder_id == 0: return "根目录"
+    path_parts = []
+    curr_id = folder_id
+    while curr_id != 0:
+        f = db.query(Folder).filter(Folder.id == curr_id).first()
+        if not f: break
+        path_parts.insert(0, f.name)
+        curr_id = f.parent_id
+    return "/" + "/".join(path_parts)
+
+# 发送微信消息的核心逻辑
+# 修改后的发送函数
+def send_wechat_notify(content: str):
+    db = SessionLocal() # 创建独立连接
+    try:
+        s = db.query(Settings).first()
+        if not s or not s.wechat_enabled: return
+        
+        # 使用同步 Client
+        with httpx.Client() as client:
+            # 1. 获取 Token
+            t_res = client.get(f"{s.wechat_proxy_url}/cgi-bin/gettoken?corpid={s.wechat_corpid}&corpsecret={s.wechat_secret}")
+            tk = t_res.json().get("access_token")
+            if tk:
+                # 2. 发送消息 (强制转换 agentid 为 int)
+                msg = {
+                    "touser": s.wechat_whitelist or "@all",
+                    "msgtype": "text",
+                    "agentid": int(s.wechat_agentid), # 关键修复：转为整数
+                    "text": {"content": content}
+                }
+                client.post(f"{s.wechat_proxy_url}/cgi-bin/message/send?access_token={tk}", json=msg)
+    except Exception as e:
+        logger.error(f"WeChat Notify Failed: {e}")
+    finally:
+        db.close()
 
 @app.post("/token")
 async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
@@ -215,11 +255,28 @@ def del_folder(fid: int, user: User = Depends(get_user), db: Session = Depends(g
     db.query(Folder).filter(Folder.id == fid).delete(); db.commit(); return {"status": "success"}
 
 @app.post("/api/upload")
-async def upload(file: UploadFile = File(...), version: str = Form(""), changelog: str = Form(""), git_commit: str = Form(""), folder_id: int = Form(0), user: User = Depends(get_user), db: Session = Depends(get_db)):
+async def upload(background_tasks: BackgroundTasks, file: UploadFile = File(...), version: str = Form(""), changelog: str = Form(""), git_commit: str = Form(""), folder_id: int = Form(0), user: User = Depends(get_user), db: Session = Depends(get_db)):
     content = await file.read(); save_path = os.path.join(UPLOAD_DIR, file.filename)
     with open(save_path, "wb") as f: f.write(content)
-    db.add(FileRecord(filename=file.filename, filepath=save_path, md5=hashlib.md5(content).hexdigest(), version=version, changelog=changelog, git_commit=git_commit, submitter=user.username, folder_id=folder_id, filesize=len(content)))
-    db.commit(); return {"status": "success"}
+    new_file = FileRecord(filename=file.filename, filepath=save_path, md5=hashlib.md5(content).hexdigest(), version=version, changelog=changelog, git_commit=git_commit, submitter=user.username, folder_id=folder_id, filesize=len(content))
+    db.add(new_file); db.commit()
+    
+    # 微信通知模板替换
+    s = db.query(Settings).first()
+    if s and s.wechat_enabled:
+        path_str = get_folder_path(folder_id, db)
+        # 获取模板，如果为空则使用默认格式
+        tpl = s.wechat_template or "{{user}} 在 {{path}} 发布了 {{filename}}\n版本：{{version}}\n描述：{{changelog}}"
+        msg_content = tpl.replace("{{user}}", user.full_name or user.username)\
+                         .replace("{{path}}", path_str)\
+                         .replace("{{filename}}", file.filename)\
+                         .replace("{{version}}", version or git_commit or "v1.0")\
+                         .replace("{{changelog}}", changelog or "无")
+        
+        # 启动后台任务
+        background_tasks.add_task(send_wechat_notify, msg_content)
+    
+    return {"status": "success"}
 
 @app.put("/api/admin/files/{fid}")
 def edit_file(fid: int, data: dict, user: User = Depends(get_user), db: Session = Depends(get_db)):
