@@ -21,7 +21,7 @@
             </div>
 
             <div class="flex flex-wrap justify-between items-center mb-6 gap-4">
-                <div class="flex items-center gap-2 text-[10px] font-black text-slate-400 overflow-x-auto pb-1">
+                <div class="flex items-center gap-2 text-[10px] font-black text-slate-400 overflow-x-auto pb-1 scrollbar-hide">
                     <button @click="navTo(0)" class="hover:text-blue-600 flex items-center gap-1 whitespace-nowrap"><i class="ri-home-4-line text-sm"></i> 首页</button>
                     <template v-for="bc in breadcrumbs"><i class="ri-arrow-right-s-line text-slate-300"></i><button @click="navTo(bc.id)" class="hover:text-blue-600 whitespace-nowrap uppercase">{{bc.name}}</button></template>
                 </div>
@@ -53,22 +53,22 @@
                                     <div :class="getIconBg(f.name)" class="w-10 h-10 rounded-xl flex items-center justify-center text-xl shadow-sm transition group-hover:rotate-3"><i :class="getFileIcon(f.name)"></i></div>
                                     <div class="min-w-0">
                                         <div class="font-black text-slate-800 dark:text-slate-100 text-sm">{{ f.name }} <span class="ml-1 text-[8px] text-slate-400 font-normal">({{ formatSize(f.size) }})</span></div>
-                                        <div v-if="config.show_changelog && f.changelog" class="text-xs text-slate-400 dark:text-slate-500 mt-0.5 font-bold italic line-clamp-1"># {{ f.changelog }}</div>
-                                        <div v-if="config.show_md5" class="text-[8px] font-mono text-slate-300 mt-0.5 uppercase tracking-tighter">MD5: {{ f.md5 }}</div>
+                                        <div v-if="config.show_changelog && f.changelog" class="text-xs text-slate-400 font-bold mt-0.5 line-clamp-1 italic"># {{ f.changelog }}</div>
+                                        <div v-if="config.show_md5" class="text-[8px] font-mono text-slate-300 mt-0.5 uppercase tracking-tighter opacity-50">MD5: {{ f.md5 }}</div>
                                         <div v-if="search" class="text-[8px] text-blue-400 font-black mt-1 uppercase">{{ getPath(f.folder_id) }}</div>
                                     </div>
                                 </div>
                             </td>
                             <td v-if="config.show_version" class="px-8 py-4">
                                 <div class="flex flex-col gap-1">
-                                    <span class="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-2 py-0.5 rounded-lg text-[10px] font-black w-fit block">{{ f.version || 'v1.0' }}</span>
+                                    <span class="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-2 py-0.5 rounded-lg text-[10px] font-black w-fit block shadow-sm">{{ f.version || 'v1.0' }}</span>
                                     <span v-if="config.show_git_commit && f.git_commit" class="text-[8px] font-mono text-slate-400 opacity-60 block truncate max-w-[60px]"><i class="ri-git-branch-line"></i> {{ f.git_commit }}</span>
                                 </div>
                             </td>
                             <td v-if="config.show_date" class="px-8 py-4 text-xs font-bold text-slate-500 whitespace-nowrap">{{ f.date.split(' ')[0] }}</td>
-                            <td v-if="config.show_submitter" class="px-8 py-4"><div class="flex items-center gap-2"><div class="w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-600 flex items-center justify-center text-[10px] font-black uppercase">{{ f.submitter[0] }}</div><span class="text-xs font-bold text-slate-600">{{ f.submitter }}</span></div></td>
+                            <td v-if="config.show_submitter" class="px-8 py-4"><div class="flex items-center gap-2"><div class="w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-600 flex items-center justify-center text-[10px] font-black uppercase shadow-sm">{{ f.publisher[0] }}</div><span class="text-xs font-bold text-slate-600">{{ f.publisher }}</span></div></td>
                             <td class="px-8 py-4 text-right">
-                                <button @click="dl(f)" :disabled="f.downloading" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-xl font-black shadow-lg transition active:scale-95 min-w-[80px] relative overflow-hidden text-[10px]">
+                                <button @click="dl(f)" :disabled="f.downloading" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-1.5 rounded-xl font-black shadow-lg transition active:scale-95 min-w-[80px] relative overflow-hidden text-[10px]">
                                     <div v-if="f.downloading" class="absolute inset-0 bg-blue-800 transition-all" :style="{width: f.progress + '%'}"></div>
                                     <span class="relative z-10">{{ f.downloading ? f.progress + '%' : '下载' }}</span>
                                 </button>
@@ -130,15 +130,11 @@
                         }
                         f.downloading = false;
                     };
-                    xhr.onerror = () => { alert('失败'); f.downloading = false; }; xhr.send();
+                    xhr.onerror = () => { alert('下载异常'); f.downloading = false; }; xhr.send();
                 };
 
-                const toggleDark = () => { isDark.value = !isDark.value; document.documentElement.classList.toggle('dark'); localStorage.setItem('theme', isDark.value?'dark':'light'); };
-                const getFileIcon = (n) => n.includes('Image')||n.includes('boot') ? 'ri-pulse-line' : (n.endsWith('.pdf') ? 'ri-file-pdf-line' : 'ri-file-3-line');
-                const getIconBg = (n) => n.includes('Image')||n.includes('boot') ? 'bg-purple-100 text-purple-600' : (n.endsWith('.pdf') ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600');
-
                 onMounted(() => { if(isDark.value) document.documentElement.classList.add('dark'); loadData(); });
-                return { isDark, toggleDark, config, loading, search, displayFiles, displayFolders, breadcrumbs, navTo, goUp, dl, getFileIcon, getIconBg, currentFolderId, getPath, formatSize };
+                return { isDark, toggleDark: () => { isDark.value = !isDark.value; document.documentElement.classList.toggle('dark'); localStorage.setItem('theme', isDark.value?'dark':'light'); }, config, loading, search, displayFiles, displayFolders, breadcrumbs, navTo, goUp, dl, getFileIcon: (n) => n.includes('Image') ? 'ri-pulse-line' : (n.endsWith('.pdf') ? 'ri-file-pdf-line' : 'ri-file-3-line'), getIconBg: (n) => n.includes('Image') ? 'bg-purple-100 text-purple-600' : (n.endsWith('.pdf') ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'), currentFolderId, getPath, formatSize };
             }
         }).mount('#app');
     </script>
