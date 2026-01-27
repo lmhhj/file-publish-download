@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>后台管理</title>
+    <title>RD Panel - 后台管理</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
@@ -10,13 +10,13 @@
 </head>
 <body class="bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 transition-colors duration-300">
     <div id="app" class="flex min-h-screen">
-        <div v-if="!token" class="fixed inset-0 bg-slate-900/60 flex items-center justify-center z-50 backdrop-blur-sm">
-            <div class="bg-white dark:bg-slate-800 p-10 rounded-[40px] shadow-2xl w-full max-w-sm border border-slate-100 dark:border-slate-700">
-                <h2 class="text-2xl font-black mb-8 text-center text-slate-800 dark:text-white">系统登录</h2>
+        <div v-if="!token" class="fixed inset-0 bg-slate-900/60 flex items-center justify-center z-50">
+            <div class="bg-white dark:bg-slate-800 p-10 rounded-[40px] shadow-2xl w-full max-w-sm">
+                <h2 class="text-2xl font-black mb-8 text-center">系统登录</h2>
                 <div class="space-y-4">
-                    <input v-model="loginForm.username" placeholder="管理员账号" class="w-full p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 transition">
-                    <input v-model="loginForm.password" type="password" placeholder="密码" class="w-full p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 transition" @keyup.enter="doLogin">
-                    <button @click="doLogin" class="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold hover:bg-blue-700">进入后台</button>
+                    <input v-model="loginForm.username" placeholder="账号" class="w-full p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl outline-none">
+                    <input v-model="loginForm.password" type="password" placeholder="密码" class="w-full p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl outline-none" @keyup.enter="doLogin">
+                    <button @click="doLogin" class="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold hover:bg-blue-700 transition">登录</button>
                 </div>
             </div>
         </div>
@@ -25,58 +25,70 @@
             <aside class="w-72 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 flex flex-col h-screen sticky top-0 z-30">
                 <div class="p-8 flex items-center gap-3 border-b border-slate-50 dark:border-slate-700">
                     <div class="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg"><i class="ri-cpu-line text-xl"></i></div>
-                    <span class="font-black text-xl tracking-tighter">RD Panel</span>
+                    <span class="font-black text-xl tracking-tighter uppercase">RD Panel</span>
                 </div>
-                <nav class="flex-1 p-4 space-y-2 overflow-y-auto">
-                    <button @click="tab='files'" :class="tab==='files'?'bg-blue-600 text-white shadow-lg':'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700'" class="w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition font-bold"><i class="ri-folder-6-line"></i> 资源管理</button>
-                    <button @click="tab='upload'" :class="tab==='upload'?'bg-blue-600 text-white shadow-lg':'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700'" class="w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition font-bold"><i class="ri-upload-cloud-2-line"></i> 发布固件</button>
-                    <button v-if="role==='admin'" @click="tab='users'" :class="tab==='users'?'bg-blue-600 text-white shadow-lg':'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700'" class="w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition font-bold"><i class="ri-team-line"></i> 成员授权</button>
-                    <button v-if="role==='admin'" @click="tab='cfg'" :class="tab==='cfg'?'bg-blue-600 text-white shadow-lg':'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700'" class="w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition font-bold"><i class="ri-layout-settings-line"></i> 前端显示配置</button>
-                    <button @click="tab='pass'" :class="tab==='pass'?'bg-blue-600 text-white shadow-lg':'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700'" class="w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition font-bold"><i class="ri-shield-keyhole-line"></i> 安全中心</button>
+                <nav class="flex-1 p-4 space-y-2">
+                    <button @click="switchTab('files')" :class="tab==='files'?'bg-blue-600 text-white shadow-lg':'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700'" class="w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition font-bold">
+                        <i class="ri-database-2-line"></i> 资源管理
+                    </button>
+                    <button @click="switchTab('upload')" :class="tab==='upload'?'bg-blue-600 text-white shadow-lg':'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700'" class="w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition font-bold">
+                        <i class="ri-upload-cloud-2-line"></i> 发布固件
+                    </button>
+                    <button v-if="role==='admin'" @click="switchTab('users')" :class="tab==='users'?'bg-blue-600 text-white shadow-lg':'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700'" class="w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition font-bold">
+                        <i class="ri-team-line"></i> 成员授权
+                    </button>
+                    <button v-if="role==='admin'" @click="switchTab('cfg')" :class="tab==='cfg'?'bg-blue-600 text-white shadow-lg':'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700'" class="w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition font-bold">
+                        <i class="ri-window-line"></i> 前端配置
+                    </button>
+                    <button @click="switchTab('pass')" :class="tab==='pass'?'bg-blue-600 text-white shadow-lg':'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700'" class="w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition font-bold">
+                        <i class="ri-shield-keyhole-line"></i> 安全中心
+                    </button>
                 </nav>
-                <div class="p-6 border-t border-slate-50 dark:border-slate-700"><button @click="logout" class="w-full py-4 text-red-500 bg-red-50 dark:bg-red-900/20 rounded-2xl font-bold hover:bg-red-100 transition">退出登录</button></div>
+                <div class="p-6 border-t dark:border-slate-700"><button @click="logout" class="w-full py-4 text-red-500 bg-red-50 dark:bg-red-900/20 rounded-2xl font-bold">注销</button></div>
             </aside>
 
             <main class="flex-1 flex flex-col min-w-0 h-screen overflow-y-auto">
                 <header class="h-20 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-700 px-10 flex items-center justify-between sticky top-0 z-20">
-                    <div class="flex items-center gap-2 text-sm"><span class="text-slate-400 font-bold uppercase tracking-widest">Workspace</span><i class="ri-arrow-right-s-line text-slate-300"></i><span class="font-black text-slate-700 dark:text-slate-200 capitalize">{{tab}}</span></div>
+                    <div class="flex items-center gap-2 font-black text-slate-700 dark:text-slate-200 uppercase">{{tab}}</div>
                     <div class="flex items-center gap-5">
-                        <button @click="toggleDark" class="w-10 h-10 flex items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-500 hover:bg-slate-200 transition"><i :class="isDark?'ri-sun-line text-yellow-500':'ri-moon-line'"></i></button>
-                        <a href="/" target="_blank" class="flex items-center gap-2 text-sm font-bold text-blue-600 bg-blue-50 dark:bg-blue-900/30 px-5 py-2.5 rounded-xl hover:bg-blue-100 transition"><i class="ri-external-link-line"></i> 预览公共端</a>
-                        <div class="flex items-center gap-3 border-l dark:border-slate-700 pl-6"><span class="font-black text-slate-700 dark:text-slate-200">{{currentUser}}</span></div>
+                        <button @click="toggleDark" class="w-10 h-10 flex items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-700"><i :class="isDark?'ri-sun-line text-yellow-500':'ri-moon-line'"></i></button>
+                        <a href="/" target="_blank" class="flex items-center gap-2 text-sm font-bold text-blue-600 bg-blue-50 dark:bg-blue-900/30 px-5 py-2.5 rounded-xl"><i class="ri-external-link-line"></i> 公共端</a>
+                        <span class="font-black">{{currentUser}}</span>
                     </div>
                 </header>
 
-                <div class="p-10 pb-20">
+                <div class="p-10">
                     <div v-if="tab==='files'" class="space-y-6">
-                        <div class="flex justify-between items-center bg-white dark:bg-slate-800 p-4 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm">
-                            <div class="flex items-center gap-4 flex-1">
-                                <div class="relative w-full max-w-md">
-                                    <i class="ri-search-line absolute left-4 top-3.5 text-slate-400"></i>
-                                    <input v-model="searchQuery" placeholder="搜索文件名..." class="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-900 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 transition">
-                                </div>
-                                <label class="flex items-center gap-2 cursor-pointer px-4 py-3 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-700 transition" :class="{'text-blue-600': onlyMyFiles}">
-                                    <input type="checkbox" v-model="onlyMyFiles" class="w-4 h-4 accent-blue-600">
-                                    <span class="font-bold text-sm">只看我的</span>
+                        <div class="flex flex-wrap justify-between items-center bg-white dark:bg-slate-800 p-4 rounded-3xl border border-slate-200 dark:border-slate-700 gap-4 shadow-sm">
+                            <div class="flex items-center gap-2">
+                                <button @click="navTo(0)" class="px-3 py-1 rounded-lg text-blue-600 font-bold hover:bg-blue-50">根目录</button>
+                                <template v-for="bc in breadcrumbs"><i class="ri-arrow-right-s-line text-slate-300"></i><button @click="navTo(bc.id)" class="px-2 font-bold">{{bc.name}}</button></template>
+                            </div>
+                            <div class="flex items-center gap-4">
+                                <input v-model="searchQuery" placeholder="搜索文件或文件夹..." class="px-4 py-2 bg-slate-50 dark:bg-slate-900 rounded-xl outline-none text-sm w-48 border border-transparent focus:border-blue-500 transition">
+                                <label class="flex items-center gap-2 text-sm font-bold cursor-pointer select-none px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-900">
+                                    <input type="checkbox" v-model="onlyMyFiles" class="w-4 h-4 accent-blue-600"> 只看我的
                                 </label>
+                                <button @click="showFolderModal=true" class="bg-amber-500 text-white px-5 py-2 rounded-xl font-bold shadow-lg hover:bg-amber-600 transition flex items-center gap-2"><i class="ri-folder-add-line"></i> 新建文件夹</button>
                             </div>
                         </div>
-                        <div class="bg-white dark:bg-slate-800 rounded-[32px] border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+
+                        <div class="bg-white dark:bg-slate-800 rounded-[32px] border border-slate-200 dark:border-slate-700 overflow-hidden">
                             <table class="w-full text-left">
-                                <thead class="bg-slate-50 dark:bg-slate-900/50 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                                    <tr><th class="px-8 py-5">类型</th><th class="px-8 py-5">文件</th><th class="px-8 py-5">提交人</th><th class="px-8 py-5">MD5</th><th class="px-8 py-5 text-right">操作</th></tr>
-                                </thead>
+                                <thead class="bg-slate-50 dark:bg-slate-900/50 text-[10px] font-black uppercase tracking-widest text-slate-400"><tr><th class="px-8 py-5">资源名称</th><th class="px-8 py-5">版本信息</th><th class="px-8 py-5">记录</th><th class="px-8 py-5 text-right">操作</th></tr></thead>
                                 <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
-                                    <tr v-for="f in filteredFiles" :key="f.id" class="hover:bg-slate-50/50 dark:hover:bg-slate-700/50 transition">
-                                        <td class="px-8 py-6"><div :class="getIconBg(f.name)" class="w-10 h-10 rounded-lg flex items-center justify-center text-lg"><i :class="getFileIcon(f.name)"></i></div></td>
-                                        <td class="px-8 py-6"><div class="font-black text-slate-800 dark:text-slate-100 text-sm">{{f.name}}</div><div class="text-[10px] text-slate-400 mt-1 font-mono">Ver: {{f.version||'N/A'}}</div></td>
-                                        <td class="px-8 py-6"><span class="px-2 py-1 bg-slate-100 dark:bg-slate-700 rounded text-[10px] font-bold text-slate-500 uppercase">{{f.submitter}}</span></td>
-                                        <td class="px-8 py-6"><div class="text-[10px] font-mono text-slate-400 truncate w-24" :title="f.md5">{{f.md5}}</div></td>
-                                        <td class="px-8 py-6 text-right">
-                                            <div v-if="role==='admin' || f.submitter===currentUser" class="flex justify-end gap-2">
-                                                <button @click="openEdit(f)" class="w-8 h-8 rounded-lg bg-blue-50 text-blue-500 hover:bg-blue-500 hover:text-white transition"><i class="ri-edit-line"></i></button>
-                                                <button @click="delF(f.id)" class="w-8 h-8 rounded-lg bg-red-50 text-red-500 hover:bg-red-500 hover:text-white transition"><i class="ri-delete-bin-line"></i></button>
-                                            </div>
+                                    <tr v-for="f in displayFolders" @click="navTo(f.id)" class="hover:bg-amber-50/50 cursor-pointer group">
+                                        <td class="px-8 py-6 font-bold flex items-center gap-3 text-lg"><i class="ri-folder-3-fill text-amber-500"></i>{{f.name}}</td>
+                                        <td>-</td><td>-</td>
+                                        <td class="px-8 py-6 text-right"><button @click.stop="delFolder(f.id)" class="text-red-400 opacity-0 group-hover:opacity-100 hover:text-red-600"><i class="ri-delete-bin-line text-xl"></i></button></td>
+                                    </tr>
+                                    <tr v-for="f in displayFiles" class="hover:bg-slate-50/50">
+                                        <td class="px-8 py-6 font-black text-sm flex items-center gap-2"><i :class="getFileIcon(f.name)" class="text-blue-500 text-lg"></i> {{f.name}}</td>
+                                        <td class="px-8 py-6"><div class="text-xs font-bold">{{f.version || '-'}}</div><div class="text-[9px] text-slate-400 font-mono mt-1" v-if="f.git_commit">{{f.git_commit}}</div></td>
+                                        <td class="px-8 py-6 text-xs text-slate-500 max-w-xs truncate">{{f.changelog}}</td>
+                                        <td class="px-8 py-6 text-right flex justify-end gap-2">
+                                            <button v-if="role==='admin'||f.submitter===currentUser" @click="openEdit(f)" class="text-blue-500"><i class="ri-edit-line"></i></button>
+                                            <button v-if="role==='admin'||f.submitter===currentUser" @click="delF(f.id)" class="text-red-500"><i class="ri-delete-bin-line"></i></button>
                                         </td>
                                     </tr>
                                 </tbody>
@@ -84,99 +96,60 @@
                         </div>
                     </div>
 
-                    <div v-if="editModal.show" class="fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center backdrop-blur-sm p-4">
-                        <div class="bg-white dark:bg-slate-800 rounded-[32px] w-full max-w-lg p-8 shadow-2xl border border-slate-100 dark:border-slate-700">
-                            <h3 class="text-xl font-black mb-6 flex items-center gap-2"><i class="ri-file-edit-line text-blue-500"></i> 编辑文件信息</h3>
-                            <div class="space-y-6">
-                                <div>
-                                    <label class="block text-xs font-bold text-slate-400 uppercase mb-2">文件名 (不可修改)</label>
-                                    <div class="w-full p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl font-mono text-sm text-slate-600 dark:text-slate-300 border border-transparent border-slate-100 dark:border-slate-800">{{editModal.data.name}}</div>
-                                </div>
-                                <div>
-                                    <label class="block text-xs font-bold text-slate-400 uppercase mb-2">版本号</label>
-                                    <input v-model="editModal.form.version" placeholder="例如 v1.0.1" class="w-full p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 transition">
-                                </div>
-                                <div>
-                                    <label class="block text-xs font-bold text-slate-400 uppercase mb-2">变更记录</label>
-                                    <textarea v-model="editModal.form.changelog" placeholder="请输入变更详情..." class="w-full p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 h-32 transition resize-none"></textarea>
-                                </div>
-                            </div>
-                            <div class="flex gap-4 mt-8">
-                                <button @click="editModal.show=false" class="flex-1 py-4 font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-2xl transition">取消</button>
-                                <button @click="saveEdit" class="flex-1 py-4 bg-blue-600 text-white font-bold rounded-2xl hover:bg-blue-700 transition shadow-lg shadow-blue-500/30">保存修改</button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div v-if="tab==='cfg'" class="grid grid-cols-1 md:grid-cols-2 gap-8">
-                        <div class="bg-white dark:bg-slate-800 p-10 rounded-[40px] border border-slate-200 dark:border-slate-700 shadow-sm">
-                            <h3 class="font-black text-xl mb-6">显示开关</h3>
-                            <div class="space-y-4">
-                                <label v-for="(v,k) in {'show_md5':'MD5','show_version':'版本','show_date':'日期','show_changelog':'记录','show_submitter':'提交人'}" class="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl cursor-pointer">
-                                    <span class="font-bold text-slate-600 dark:text-slate-300">{{v}}</span>
-                                    <input type="checkbox" v-model="config[k]" class="w-5 h-5 accent-blue-600">
-                                </label>
-                            </div>
-                        </div>
-                        <div class="bg-white dark:bg-slate-800 p-10 rounded-[40px] border border-slate-200 dark:border-slate-700 shadow-sm h-fit">
-                            <h3 class="font-black text-xl mb-6">品牌设置</h3>
-                            <div class="space-y-4">
-                                <div>
-                                    <div class="text-xs font-bold text-slate-400 mb-2 uppercase">主标题 (Logo)</div>
-                                    <input v-model="config.site_title" class="w-full p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border-0 outline-none focus:ring-2 focus:ring-blue-500 transition">
-                                </div>
-                                <div>
-                                    <div class="text-xs font-bold text-slate-400 mb-2 uppercase">副标题</div>
-                                    <input v-model="config.site_subtitle" class="w-full p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border-0 outline-none focus:ring-2 focus:ring-blue-500 transition">
-                                </div>
-                                <button @click="saveCfg" class="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold hover:bg-blue-700 mt-4 shadow-lg shadow-blue-500/30">保存所有配置</button>
+                    <div v-if="showFolderModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 flex items-center justify-center p-4">
+                        <div class="bg-white dark:bg-slate-800 rounded-[40px] w-full max-w-md p-10 shadow-2xl">
+                            <h3 class="text-2xl font-black mb-6">新建文件夹</h3>
+                            <input v-model="newFolderName" placeholder="输入名称..." class="w-full p-5 bg-slate-50 dark:bg-slate-900 rounded-2xl outline-none font-bold mb-8" @keyup.enter="confirmCreateFolder">
+                            <div class="flex gap-4">
+                                <button @click="showFolderModal=false" class="flex-1 py-4 font-black text-slate-400">取消</button>
+                                <button @click="confirmCreateFolder" class="flex-1 py-4 bg-amber-500 text-white rounded-2xl font-black">立即创建</button>
                             </div>
                         </div>
                     </div>
 
                     <div v-if="tab==='upload'" class="max-w-xl mx-auto space-y-6">
-                        <div @dragover.prevent="drag=true" @dragleave.prevent="drag=false" @drop.prevent="onDrop" @click="$refs.fIn.click()" :class="drag?'border-blue-500 bg-blue-50 dark:bg-blue-900/20':'border-slate-200 dark:border-slate-700'" class="border-2 border-dashed p-16 rounded-[48px] text-center cursor-pointer transition-all bg-white dark:bg-slate-800">
+                        <div @dragover.prevent="drag=true" @dragleave.prevent="drag=false" @drop.prevent="onDrop" @click="$refs.fIn.click()" :class="drag?'border-blue-500 bg-blue-50':'border-slate-200'" class="border-2 border-dashed p-16 rounded-[48px] text-center bg-white dark:bg-slate-800 cursor-pointer">
                             <input type="file" ref="fIn" class="hidden" @change="onFile">
-                            <i v-if="!file" class="ri-upload-cloud-2-line text-6xl text-slate-200 mb-4 block"></i>
-                            <div v-else class="text-blue-600 font-black text-xl mb-2">{{file.name}}</div>
-                            <p class="text-slate-400 font-bold">{{file?'准备就绪':'拖拽固件到此处发布'}}</p>
+                            <div v-if="!file"><i class="ri-upload-cloud-2-line text-7xl text-slate-200 mb-4 block"></i></div>
+                            <div v-else class="text-blue-600 font-black text-2xl mb-2">{{file.name}}</div>
+                            <p class="text-slate-400 font-bold">点击或拖拽固件发布</p>
                         </div>
-                        <div class="bg-white dark:bg-slate-800 p-8 rounded-[40px] border border-slate-200 dark:border-slate-700 space-y-4">
-                            <input v-model="form.v" placeholder="版本号" class="w-full p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl outline-none text-sm">
-                            <textarea v-model="form.c" placeholder="变更描述..." class="w-full p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl h-32 outline-none text-sm"></textarea>
-                            <button @click="doUp" :disabled="uping" class="w-full bg-blue-600 text-white py-5 rounded-2xl font-black shadow-xl">{{uping?'同步中...':'开始分发'}}</button>
+                        <div class="bg-white dark:bg-slate-800 p-8 rounded-[40px] border border-slate-200 dark:border-slate-700 space-y-4 shadow-sm">
+                            <select v-model="form.folder_id" class="w-full p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl font-bold border-0">
+                                <option :value="0">/ 根目录</option>
+                                <option v-for="f in allFolders" :value="f.id">📁 {{f.name}}</option>
+                            </select>
+                            <div class="flex gap-4"><input v-model="form.v" placeholder="版本号" class="flex-1 p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border-0"><input v-model="form.git" placeholder="Git ID" class="flex-1 p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border-0"></div>
+                            <textarea v-model="form.c" placeholder="变更记录..." class="w-full p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl h-32 border-0 outline-none"></textarea>
+                            <button @click="doUp" :disabled="uping" class="w-full bg-blue-600 text-white py-5 rounded-2xl font-black shadow-xl">确认发布</button>
                         </div>
                     </div>
 
                     <div v-if="tab==='users' && role==='admin'" class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                        <div class="bg-white dark:bg-slate-800 p-10 rounded-[40px] border border-slate-200 dark:border-slate-700 shadow-sm h-fit">
-                            <h3 class="font-black text-2xl mb-6">新增成员</h3>
-                            <div class="space-y-4">
-                                <input v-model="uForm.username" placeholder="登录账号" class="w-full p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl outline-none">
-                                <input v-model="uForm.password" placeholder="初始密码" class="w-full p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl outline-none">
-                                <button @click="addU" class="w-full bg-slate-900 dark:bg-blue-600 text-white py-4 rounded-2xl font-bold">创建账号</button>
-                            </div>
-                        </div>
-                        <div class="bg-white dark:bg-slate-800 p-10 rounded-[40px] border border-slate-200 dark:border-slate-700 shadow-sm">
-                            <h3 class="font-black text-2xl mb-6 text-slate-400">成员列表</h3>
-                            <div class="space-y-3 max-h-[400px] overflow-y-auto">
-                                <template v-for="u in userList">
-                                    <div v-if="u.username" class="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl">
-                                        <div class="flex items-center gap-3"><span class="font-bold">{{u.username}}</span><span v-if="u.role==='admin'" class="text-[8px] bg-blue-600 text-white px-1 rounded uppercase">Admin</span></div>
-                                        <div class="flex gap-2">
-                                            <button @click="resetU(u)" class="p-2 text-orange-500 hover:bg-orange-100 rounded-lg"><i class="ri-lock-unlock-line"></i></button>
-                                            <button v-if="u.username!=='admin'" @click="delU(u.id)" class="p-2 text-red-500 hover:bg-red-100 rounded-lg"><i class="ri-delete-bin-line"></i></button>
-                                        </div>
-                                    </div>
-                                </template>
-                            </div>
+                        <div class="bg-white dark:bg-slate-800 p-10 rounded-[40px] border dark:border-slate-700 h-fit shadow-sm"><h3 class="font-black text-xl mb-8">新增成员</h3><div class="space-y-4"><input v-model="uForm.username" placeholder="账号" class="w-full p-5 bg-slate-50 dark:bg-slate-900 rounded-2xl border-0"><input v-model="uForm.password" placeholder="密码" class="w-full p-5 bg-slate-50 dark:bg-slate-900 rounded-2xl border-0"><button @click="addU" class="w-full bg-slate-900 text-white py-5 rounded-2xl font-black">创建并授权</button></div></div>
+                        <div class="bg-white dark:bg-slate-800 p-10 rounded-[40px] border dark:border-slate-700 shadow-sm"><h3 class="font-black text-xl mb-8 text-slate-400">成员列表</h3><div class="space-y-3"><div v-for="u in userList" class="flex items-center justify-between p-5 bg-slate-50 dark:bg-slate-900 rounded-3xl group transition hover:bg-white dark:hover:bg-slate-700"><span>{{u.username}} <span v-if="u.role==='admin'" class="text-[10px] text-blue-500 font-bold ml-2">ADMIN</span></span><div class="flex gap-2 opacity-0 group-hover:opacity-100 transition"><button @click="resetU(u)" class="text-orange-500 p-2"><i class="ri-key-2-line"></i></button><button v-if="u.username!=='admin'" @click="delU(u.id)" class="text-red-500 p-2"><i class="ri-delete-bin-line"></i></button></div></div></div></div>
+                    </div>
+
+                    <div v-if="tab==='cfg' && role==='admin'" class="bg-white dark:bg-slate-800 p-10 rounded-[40px] border dark:border-slate-700 max-w-2xl mx-auto shadow-sm">
+                        <div class="flex justify-between items-center mb-8"><h3 class="font-black text-xl">显示配置</h3><button @click="saveCfg" class="bg-blue-600 text-white px-8 py-2 rounded-xl font-bold shadow-lg">保存配置</button></div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            <div class="space-y-4"><div><label class="text-xs font-bold text-slate-400 mb-2 block">主标题</label><input v-model="config.site_title" class="w-full p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border-0"></div><div><label class="text-xs font-bold text-slate-400 mb-2 block">副标题</label><input v-model="config.site_subtitle" class="w-full p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border-0"></div></div>
+                            <div class="space-y-3"><div v-for="(v,k) in {'show_md5':'MD5码','show_version':'版本号','show_date':'发布日期','show_changelog':'变更记录','show_submitter':'发布人','show_git_commit':'Git版本'}" class="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl"><span>{{v}}</span><input type="checkbox" v-model="config[k]" class="w-5 h-5 accent-blue-600"></div></div>
                         </div>
                     </div>
 
-                    <div v-if="tab==='pass'" class="max-w-md mx-auto bg-white dark:bg-slate-800 p-10 rounded-[40px] border border-slate-200 dark:border-slate-700 shadow-sm text-center">
-                        <h3 class="font-black text-2xl mb-2">更新密码</h3>
-                        <input v-model="newP" type="password" placeholder="输入新密码" class="w-full p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl outline-none mb-4 text-center">
-                        <button @click="setPw" class="w-full bg-red-500 text-white py-4 rounded-2xl font-bold">立即更新</button>
+                    <div v-if="tab==='pass'" class="max-w-md mx-auto bg-white dark:bg-slate-800 p-12 rounded-[50px] text-center border dark:border-slate-700 shadow-sm"><h3 class="font-black text-2xl mb-8">更新密码</h3><input v-model="newP" type="password" placeholder="输入新密码..." class="w-full p-5 bg-slate-50 dark:bg-slate-900 rounded-2xl outline-none font-bold text-center mb-6"><button @click="setPw" class="w-full bg-green-500 text-white py-5 rounded-2xl font-black">立即确认修改</button></div>
+                    
+                    <div v-if="editModal.show" class="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 flex items-center justify-center p-4">
+                        <div class="bg-white dark:bg-slate-800 rounded-[40px] w-full max-w-lg p-10 shadow-2xl">
+                            <h3 class="text-2xl font-black mb-8">编辑固件</h3>
+                            <div class="space-y-5">
+                                <div><label class="text-[10px] font-black text-slate-400 uppercase mb-1 block">文件名</label><div class="p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl font-mono text-sm">{{editModal.data.name}}</div></div>
+                                <div class="flex gap-4"><div class="flex-1"><label class="text-xs font-bold text-slate-400 mb-1 block">版本</label><input v-model="editModal.form.version" class="w-full p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border-0 font-bold"></div><div class="flex-1"><label class="text-xs font-bold text-slate-400 mb-1 block">Git Commit</label><input v-model="editModal.form.git_commit" class="w-full p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border-0 font-mono text-xs"></div></div>
+                                <div><label class="text-xs font-bold text-slate-400 mb-1 block">记录</label><textarea v-model="editModal.form.changelog" class="w-full p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl h-32 border-0 font-bold resize-none"></textarea></div>
+                            </div>
+                            <div class="flex gap-4 mt-8"><button @click="editModal.show=false" class="flex-1 py-4 font-black text-slate-400">取消</button><button @click="saveEdit" class="flex-1 py-4 bg-blue-600 text-white font-black rounded-2xl shadow-xl">保存</button></div>
+                        </div>
                     </div>
                 </div>
             </main>
@@ -192,90 +165,84 @@
                 const role = ref(localStorage.getItem('role') || '');
                 const currentUser = ref(localStorage.getItem('user') || '');
                 const tab = ref('files');
-                const drag = ref(false);
-                const uping = ref(false);
-                const file = ref(null);
-                const files = ref([]);
-                const userList = ref([]);
-                const config = ref({ site_title: '', site_subtitle: '' });
+                const allFiles = ref([]); const allFolders = ref([]); const userList = ref([]);
+                const config = ref({}); const currentFolderId = ref(0);
+                const searchQuery = ref(''); const onlyMyFiles = ref(false);
                 const loginForm = ref({username:'', password:''});
-                const form = ref({v:'', c:''});
+                const form = ref({v:'', c:'', git:'', folder_id: 0});
                 const uForm = ref({username:'', password:''});
-                const newP = ref('');
-                const searchQuery = ref('');
-                const onlyMyFiles = ref(false);
+                const newP = ref(''); const drag = ref(false); const uping = ref(false); const file = ref(null);
                 const editModal = ref({ show: false, data: {}, form: {} });
-
-                const toggleDark = () => { isDark.value = !isDark.value; document.documentElement.classList.toggle('dark'); localStorage.setItem('theme', isDark.value?'dark':'light'); };
-                const getFileIcon = (n) => { if(n==='Image'||n==='zImage')return 'ri-pulse-line'; const e=n.split('.').pop().toLowerCase(); if(['bin','hex'].includes(e))return 'ri-cpu-line'; if(e==='img')return 'ri-disc-line'; if(['zip','rar'].includes(e))return 'ri-file-zip-line'; return 'ri-file-3-line'; };
-                const getIconBg = (n) => { if(n==='Image'||n==='zImage')return 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400'; const e=n.split('.').pop().toLowerCase(); if(['bin','img','hex'].includes(e))return 'bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400'; return 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400'; };
+                const showFolderModal = ref(false); const newFolderName = ref('');
 
                 const api = async (u, o={}) => {
-                    try {
-                        const ts = Date.now();
-                        const url = u.includes('?') ? `${u}&t=${ts}` : `${u}?t=${ts}`;
-                        const res = await fetch(url, {...o, headers: {...o.headers, 'Authorization': `Bearer ${token.value}`}});
-                        if(res.status === 401) logout();
-                        if(!res.ok) throw new Error((await res.json()).detail || 'Failed');
-                        return res;
-                    } catch(e) { alert(e.message); throw e; }
+                    const ts = Date.now(); const url = u.includes('?') ? `${u}&t=${ts}` : `${u}?t=${ts}`;
+                    const res = await fetch(url, {...o, headers: {...o.headers, 'Authorization': `Bearer ${token.value}`}});
+                    if(res.status === 401) logout();
+                    return res;
                 };
 
                 const loadData = async () => {
                     if(!token.value) return;
-                    files.value = await api('/api/public/files').then(r=>r.json());
-                    config.value = await api('/api/public/config').then(r=>r.json());
-                    if(role.value === 'admin') userList.value = await api('/api/admin/users').then(r=>r.json());
+                    try {
+                        const res = await api('/api/public/data').then(r=>r.json());
+                        allFiles.value = res.files || [];
+                        allFolders.value = res.folders || [];
+                        config.value = res.config || {};
+                        if(role.value === 'admin') userList.value = await api('/api/admin/users').then(r=>r.json());
+                    } catch(e) { console.error("Load failed", e); }
                 };
 
-                const filteredFiles = computed(() => {
-                    let res = files.value;
-                    if(onlyMyFiles.value) res = res.filter(f => f.submitter === currentUser.value);
-                    if(searchQuery.value) res = res.filter(f => f.name.toLowerCase().includes(searchQuery.value.toLowerCase()));
-                    return res;
+                const displayFiles = computed(() => {
+                    let list = allFiles.value;
+                    if(searchQuery.value) list = list.filter(f => f.name.toLowerCase().includes(searchQuery.value.toLowerCase()));
+                    else list = list.filter(f => f.folder_id === currentFolderId.value);
+                    if(onlyMyFiles.value) list = list.filter(f => f.submitter === currentUser.value);
+                    return list;
                 });
-
-                const openEdit = (f) => { editModal.value.data = f; editModal.value.form = {version:f.version, changelog:f.changelog}; editModal.value.show = true; };
-                const saveEdit = async () => {
-                    if (!editModal.value.data.id) return;
-                    await api(`/api/admin/files/${editModal.value.data.id}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(editModal.value.form)});
-                    alert('修改成功'); editModal.value.show = false; loadData();
-                };
-
-                const doLogin = async () => {
-                    const fd = new FormData(); fd.append('username', loginForm.value.username); fd.append('password', loginForm.value.password);
-                    const res = await fetch('/token', {method:'POST', body:fd});
-                    if(res.ok) {
-                        const d = await res.json(); token.value = d.access_token; role.value = d.role; currentUser.value = loginForm.value.username;
-                        localStorage.setItem('token', d.access_token); localStorage.setItem('role', d.role); localStorage.setItem('user', currentUser.value);
-                        location.reload();
-                    } else alert('登录失败');
-                };
+                const displayFolders = computed(() => {
+                    let list = allFolders.value;
+                    if(searchQuery.value) list = list.filter(f => f.name.toLowerCase().includes(searchQuery.value.toLowerCase()));
+                    else list = list.filter(f => f.parent_id === currentFolderId.value);
+                    return list;
+                });
                 
-                const onDrop = (e) => { drag.value = false; file.value = e.dataTransfer.files[0]; };
-                const onFile = (e) => { file.value = e.target.files[0]; };
+                const breadcrumbs = computed(() => {
+                    const path = []; let curr = allFolders.value.find(f => f.id === currentFolderId.value);
+                    while(curr) { path.unshift(curr); curr = allFolders.value.find(f => f.id === curr.parent_id); }
+                    return path;
+                });
+                
+                const navTo = (id) => currentFolderId.value = id;
+                const switchTab = (t) => { tab.value = t; if(t==='files') {currentFolderId.value=0; loadData();} };
+                const logout = () => { localStorage.clear(); location.reload(); };
+                const toggleDark = () => { isDark.value = !isDark.value; document.documentElement.classList.toggle('dark'); localStorage.setItem('theme', isDark.value?'dark':'light'); };
+
+                // Actions
+                const confirmCreateFolder = async () => {
+                    if(!newFolderName.value.trim()) return;
+                    await api('/api/admin/folders', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name:newFolderName.value, parent_id: currentFolderId.value})});
+                    newFolderName.value = ''; showFolderModal.value = false; loadData();
+                };
+                const delFolder = async (id) => { if(confirm("确认删除？")) { await api(`/api/admin/folders/${id}`, {method:'DELETE'}); loadData(); } };
                 const doUp = async () => {
                     if(!file.value) return; uping.value = true;
-                    const fd = new FormData(); fd.append('file', file.value); fd.append('version', form.value.v); fd.append('changelog', form.value.c);
-                    try { await api('/api/upload', {method:'POST', body:fd}); alert('成功'); file.value = null; form.value = {v:'', c:''}; tab.value='files'; loadData(); }
-                    catch(e){} finally { uping.value = false; }
+                    const fd = new FormData(); fd.append('file', file.value); fd.append('version', form.value.v); fd.append('changelog', form.value.c); fd.append('git_commit', form.value.git); fd.append('folder_id', form.value.folder_id);
+                    await api('/api/upload', {method:'POST', body:fd}); alert('成功'); location.reload();
                 };
+                const openEdit = (f) => { editModal.value.data = f; editModal.value.form = {version:f.version, changelog:f.changelog, git_commit: f.git_commit}; editModal.value.show = true; };
+                const saveEdit = async () => { await api(`/api/admin/files/${editModal.value.data.id}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(editModal.value.form)}); alert('成功'); editModal.value.show = false; loadData(); };
+                const doLogin = async () => { const fd = new FormData(); fd.append('username', loginForm.value.username); fd.append('password', loginForm.value.password); const res = await fetch('/token', {method:'POST', body:fd}); if(res.ok) { const d = await res.json(); token.value = d.access_token; role.value = d.role; currentUser.value = loginForm.value.username; localStorage.setItem('token', d.access_token); localStorage.setItem('role', d.role); localStorage.setItem('user', currentUser.value); location.reload(); } else alert('失败'); };
+                const onDrop = (e) => { drag.value = false; file.value = e.dataTransfer.files[0]; }; const onFile = (e) => { file.value = e.target.files[0]; };
                 const delF = async (id) => { if(confirm('删除?')) { await api(`/api/admin/files/${id}`, {method:'DELETE'}); loadData(); } };
-                const addU = async () => { try { await api('/api/admin/users', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(uForm.value)}); alert('成功'); uForm.value={username:'', password:''}; loadData(); } catch(e){} };
-                const delU = async (id) => { if(confirm('注销?')) { await api(`/api/admin/users/${id}`, {method:'DELETE'}); loadData(); } };
-                const resetU = async (u) => { 
-                    const p = prompt(`重置 ${u.username} 的密码:`, "123456");
-                    if(p) await api(`/api/admin/users/${u.id}/reset`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({new_password:p})});
-                };
-                const saveCfg = async () => {
-                    await api('/api/admin/settings', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(config.value)});
-                    alert('配置已保存');
-                };
-                const setPw = async () => { try { await api('/api/user/password', {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({new_password:newP.value})}); alert('密码更新成功'); logout(); } catch(e){} };
-                const logout = () => { localStorage.clear(); location.reload(); };
+                const addU = async () => { await api('/api/admin/users', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(uForm.value)}); loadData(); };
+                const delU = async (id) => { await api(`/api/admin/users/${id}`, {method:'DELETE'}); loadData(); };
+                const resetU = async (u) => { const p = prompt("新密码:"); if(p) await api(`/api/admin/users/${u.id}/reset`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({new_password:p})}); };
+                const saveCfg = async () => { await api('/api/admin/settings', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(config.value)}); alert('成功'); };
+                const setPw = async () => { await api('/api/user/password', {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({new_password:newP.value})}); logout(); };
 
                 onMounted(() => { if(isDark.value) document.documentElement.classList.add('dark'); loadData(); });
-                return { isDark, toggleDark, token, role, currentUser, tab, drag, uping, file, userList, loginForm, form, uForm, newP, getFileIcon, getIconBg, doLogin, onDrop, onFile, doUp, delF, addU, delU, resetU, setPw, saveCfg, logout, searchQuery, onlyMyFiles, filteredFiles, editModal, openEdit, saveEdit, config };
+                return { isDark, toggleDark, token, role, currentUser, tab, allFiles, allFolders, userList, config, currentFolderId, loginForm, form, uForm, newP, drag, uping, file, editModal, switchTab, navTo, showFolderModal, newFolderName, confirmCreateFolder, delFolder, doUp, doLogin, onDrop, onFile, delF, openEdit, saveEdit, addU, delU, resetU, saveCfg, setPw, logout, displayFiles, displayFolders, breadcrumbs, searchQuery, onlyMyFiles, getFileIcon: (n) => n.includes('Image') ? 'ri-pulse-line' : 'ri-file-3-line' };
             }
         }).mount('#app');
     </script>

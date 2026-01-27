@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>资源下载中心</title>
+    <title>资源中心</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
@@ -14,47 +14,53 @@
             <div class="flex justify-between items-end mb-8">
                 <div><h1 class="text-4xl font-black text-slate-900 dark:text-white tracking-tighter flex items-center gap-3"><i class="ri-cloud-windy-line text-blue-600"></i> {{ config.site_title || 'RD Center' }}</h1><p class="text-slate-500 dark:text-slate-400 mt-2 font-bold text-lg">{{ config.site_subtitle }}</p></div>
                 <div class="flex items-center gap-4">
-                    <button @click="toggleDark" class="w-10 h-10 flex items-center justify-center rounded-xl bg-white dark:bg-slate-800 border border-slate-200 text-slate-500 shadow-sm"><i :class="isDark?'ri-sun-line text-yellow-500':'ri-moon-line'"></i></button>
+                    <button @click="toggleDark" class="w-10 h-10 flex items-center justify-center rounded-xl bg-white dark:bg-slate-800 border border-slate-200 text-slate-500 shadow-sm transition hover:scale-105"><i :class="isDark?'ri-sun-line text-yellow-500':'ri-moon-line'"></i></button>
                     <a href="/admin/" target="_blank" class="bg-slate-900 dark:bg-blue-600 text-white px-6 py-3 rounded-2xl font-black shadow-xl hover:opacity-90 transition flex items-center gap-2">后台管理 <i class="ri-arrow-right-up-line"></i></a>
                 </div>
             </div>
 
             <div class="flex flex-wrap justify-between items-center mb-6 gap-4">
-                <div class="flex items-center gap-2 text-sm font-black text-slate-400">
-                    <button @click="navTo(0)" class="hover:text-blue-600 flex items-center gap-1"><i class="ri-home-4-line text-lg"></i> 首页</button>
-                    <template v-for="bc in breadcrumbs"><i class="ri-arrow-right-s-line text-slate-300"></i><button @click="navTo(bc.id)" class="hover:text-blue-600">{{bc.name}}</button></template>
+                <div class="flex items-center gap-2 text-sm font-black text-slate-400 overflow-x-auto pb-2 scrollbar-hide">
+                    <button @click="navTo(0)" class="hover:text-blue-600 flex items-center gap-1 whitespace-nowrap"><i class="ri-home-4-line text-lg"></i> 首页</button>
+                    <template v-for="bc in breadcrumbs"><i class="ri-arrow-right-s-line text-slate-300"></i><button @click="navTo(bc.id)" class="hover:text-blue-600 whitespace-nowrap">{{bc.name}}</button></template>
                 </div>
                 <div class="relative w-full md:w-64">
                     <i class="ri-search-line absolute left-4 top-2.5 text-slate-400"></i>
-                    <input v-model="search" placeholder="在资源库搜索..." class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl pl-10 pr-4 py-2 font-bold outline-none w-full">
+                    <input v-model="search" placeholder="在资源库搜索..." class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl pl-10 pr-4 py-2 font-bold outline-none w-full shadow-sm focus:ring-2 focus:ring-blue-500">
                 </div>
             </div>
 
             <div class="bg-white dark:bg-slate-800 rounded-[40px] shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden min-h-[500px]">
                 <table class="w-full text-left">
                     <thead class="bg-slate-50 dark:bg-slate-900/50 text-[10px] font-black uppercase tracking-widest text-slate-400">
-                        <tr><th class="px-10 py-6">资源名称 / 变更说明</th><th v-if="config.show_version" class="px-10 py-6">版本/Git</th><th v-if="config.show_date" class="px-10 py-6">日期</th><th v-if="config.show_submitter" class="px-10 py-6">发布人</th><th class="px-10 py-6 text-right">下载</th></tr>
+                        <tr>
+                            <th class="px-10 py-6">名称与变更记录</th>
+                            <th v-if="config.show_version" class="px-10 py-6">版本/Git</th>
+                            <th v-if="config.show_date" class="px-10 py-6">日期</th>
+                            <th v-if="config.show_submitter" class="px-10 py-6">发布人</th>
+                            <th class="px-10 py-6 text-right">下载</th>
+                        </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
-                        <tr v-if="currentFolderId!==0 && !search" @click="goUp" class="hover:bg-slate-50 dark:hover:bg-slate-900 cursor-pointer text-slate-400"><td colspan="6" class="px-10 py-4 font-black flex items-center gap-3"><i class="ri-arrow-go-back-line"></i> 返回上一层</td></tr>
+                        <tr v-if="currentFolderId!==0 && !search" @click="goUp" class="hover:bg-slate-50 dark:hover:bg-slate-900 cursor-pointer group transition"><td colspan="6" class="px-10 py-4 font-black text-slate-400 flex items-center gap-3"><i class="ri-arrow-go-back-line"></i> 返回上一层</td></tr>
                         
                         <tr v-for="f in displayFolders" @click="navTo(f.id)" class="hover:bg-amber-50/20 cursor-pointer group transition">
                             <td colspan="5" class="px-10 py-8 flex items-center gap-6">
-                                <div :class="f.parent_id === 0 ? 'bg-amber-100 text-amber-500' : 'bg-slate-100 text-slate-500'" class="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl shadow-sm transition">
-                                    <i :class="f.parent_id === 0 ? 'ri-folder-3-fill' : 'ri-folder-open-line'"></i>
+                                <div :class="f.parent_id === 0 ? 'bg-amber-100 text-amber-500' : 'bg-blue-100 text-blue-500'" class="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl shadow-sm group-hover:scale-110 transition duration-300">
+                                    <i :class="f.parent_id === 0 ? 'ri-folder-3-fill' : 'ri-folder-open-fill'"></i>
                                 </div>
                                 <div><div :class="f.parent_id===0 ? 'text-2xl' : 'text-xl'" class="font-black text-slate-800 dark:text-slate-100">{{ f.name }}</div></div>
-                                <i class="ri-arrow-right-s-line ml-auto text-slate-300 text-3xl group-hover:text-amber-500 transition"></i>
+                                <i class="ri-arrow-right-s-line ml-auto text-slate-300 text-3xl group-hover:text-amber-500 transform group-hover:translate-x-2 transition"></i>
                             </td>
                         </tr>
 
                         <tr v-for="f in displayFiles" class="hover:bg-blue-50/20 group transition">
                             <td class="px-10 py-6">
                                 <div class="flex items-center gap-6">
-                                    <div :class="getIconBg(f.name)" class="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl shadow-sm"><i :class="getFileIcon(f.name)"></i></div>
-                                    <div class="min-w-0 flex-1">
-                                        <div class="font-black text-slate-800 dark:text-slate-100 text-lg truncate">{{ f.name }}</div>
-                                        <div v-if="config.show_changelog && f.changelog" class="text-sm text-slate-400 font-bold mt-1 line-clamp-1"><i class="ri-git-commit-line text-xs"></i> {{ f.changelog }}</div>
+                                    <div :class="getIconBg(f.name)" class="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl shadow-sm group-hover:rotate-12 transition"><i :class="getFileIcon(f.name)"></i></div>
+                                    <div>
+                                        <div class="font-black text-slate-800 dark:text-slate-100 text-lg">{{ f.name }}</div>
+                                        <div v-if="config.show_changelog && f.changelog" class="text-sm text-slate-400 dark:text-slate-500 mt-1 font-medium"><i class="ri-git-commit-line text-xs"></i> {{ f.changelog }}</div>
                                         <div v-if="config.show_md5" class="text-[9px] font-mono text-slate-300 mt-1 uppercase">MD5: {{ f.md5 }}</div>
                                         <div v-if="search" class="text-[8px] text-blue-400 font-black mt-2 uppercase tracking-tighter">Path: {{ getPath(f.folder_id) }}</div>
                                     </div>
@@ -63,12 +69,12 @@
                             <td v-if="config.show_version" class="px-10 py-6">
                                 <div class="flex flex-col gap-2">
                                     <span class="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-3 py-1.5 rounded-xl text-xs font-black shadow-sm w-fit">{{ f.version || 'v1.0' }}</span>
-                                    <span v-if="config.show_git_commit && f.git_commit" class="text-[9px] font-mono text-slate-400 opacity-60 truncate max-w-[80px]"><i class="ri-github-line"></i> {{ f.git_commit }}</span>
+                                    <span v-if="config.show_git_commit && f.git_commit" class="text-[9px] font-mono text-slate-400 opacity-60 truncate max-w-[80px]" :title="f.git_commit"><i class="ri-github-line"></i> {{ f.git_commit }}</span>
                                 </div>
                             </td>
                             <td v-if="config.show_date" class="px-10 py-6 text-sm font-bold text-slate-500 whitespace-nowrap">{{ f.date.split(' ')[0] }}</td>
                             <td v-if="config.show_submitter" class="px-10 py-6"><div class="flex items-center gap-2"><div class="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-600 flex items-center justify-center text-xs font-black">{{ f.submitter[0].toUpperCase() }}</div><span class="text-sm font-bold text-slate-600">{{ f.submitter }}</span></div></td>
-                            <td class="px-10 py-6 text-right"><button @click="dl(f)" class="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-2xl font-black shadow-lg transition active:scale-95">下载</button></td>
+                            <td class="px-10 py-6 text-right"><button @click="downloadFile(f)" class="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-2xl font-black shadow-lg shadow-blue-500/30 transition active:scale-95">下载</button></td>
                         </tr>
                     </tbody>
                 </table>
@@ -86,10 +92,11 @@
 
                 const loadData = async () => {
                     const res = await fetch(`/api/public/data?t=${Date.now()}`).then(r=>r.json());
-                    allFiles.value = res.files || []; allFolders.value = res.folders || []; config.value = res.config || {};
+                    allFiles.value = res.files; allFolders.value = res.folders; config.value = res.config || {};
                     loading.value = false;
                 };
 
+                // 搜索逻辑优化：包含文件夹，显示路径
                 const displayFiles = computed(() => {
                     if(search.value) return allFiles.value.filter(f=>f.name.toLowerCase().includes(search.value.toLowerCase()));
                     return allFiles.value.filter(f=>f.folder_id === currentFolderId.value);
@@ -105,22 +112,23 @@
                     return path;
                 });
 
-                const getPath = (fid) => {
-                    if(fid === 0) return 'ROOT';
-                    const path = []; let curr = allFolders.value.find(f => f.id === fid);
+                const getPath = (folder_id) => {
+                    if(folder_id === 0) return 'ROOT';
+                    const path = []; let curr = allFolders.value.find(f => f.id === folder_id);
                     while(curr) { path.unshift(curr.name); curr = allFolders.value.find(f => f.id === curr.parent_id); }
                     return path.join(' / ');
                 };
 
                 const navTo = (id) => { currentFolderId.value = id; search.value = ""; };
                 const goUp = () => { const curr = allFolders.value.find(f => f.id === currentFolderId.value); if(curr) currentFolderId.value = curr.parent_id || 0; };
-                const dl = (f) => { if(confirm(`确认下载：${f.name}？`)) { const link = document.createElement('a'); link.href = f.url; link.download = f.name; document.body.appendChild(link); link.click(); document.body.removeChild(link); } };
+                const downloadFile = (f) => { if(confirm(`确认下载：${f.name}？`)) { const link = document.createElement('a'); link.href = f.url; link.download = f.name; document.body.appendChild(link); link.click(); document.body.removeChild(link); } };
                 const toggleDark = () => { isDark.value = !isDark.value; document.documentElement.classList.toggle('dark'); localStorage.setItem('theme', isDark.value?'dark':'light'); };
-                const getFileIcon = (n) => n.includes('Image')||n.includes('boot') ? 'ri-pulse-line' : (n.endsWith('.pdf') ? 'ri-file-pdf-line' : 'ri-file-3-line');
-                const getIconBg = (n) => n.includes('Image')||n.includes('boot') ? 'bg-purple-100 text-purple-600' : (n.endsWith('.pdf') ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600');
+                
+                const getFileIcon = (n) => { if(n.includes('Image')||n.includes('boot')) return 'ri-pulse-line'; if(n.endsWith('.pdf')) return 'ri-file-pdf-line'; return 'ri-file-3-line'; };
+                const getIconBg = (n) => { if(n.includes('Image')||n.includes('boot')) return 'bg-purple-100 text-purple-600'; if(n.endsWith('.pdf')) return 'bg-red-100 text-red-600'; return 'bg-blue-100 text-blue-600'; };
 
                 onMounted(() => { if(isDark.value) document.documentElement.classList.add('dark'); loadData(); });
-                return { isDark, toggleDark, config, loading, search, displayFiles, displayFolders, breadcrumbs, navTo, goUp, dl, getFileIcon, getIconBg, currentFolderId, getPath };
+                return { isDark, toggleDark, config, loading, search, displayFiles, displayFolders, breadcrumbs, navTo, goUp, downloadFile, getFileIcon, getIconBg, currentFolderId, getPath };
             }
         }).mount('#app');
     </script>
