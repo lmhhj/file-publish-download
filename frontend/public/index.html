@@ -52,7 +52,13 @@
                                 <div class="flex items-center gap-4">
                                     <div :class="getIconBg(f.name)" class="w-10 h-10 rounded-xl flex items-center justify-center text-xl shadow-sm transition group-hover:rotate-3"><i :class="getFileIcon(f.name)"></i></div>
                                     <div class="min-w-0">
-                                        <div class="font-black text-slate-800 dark:text-slate-100 text-sm">{{ f.name }} <span class="ml-1 text-[8px] text-slate-400 font-normal">({{ formatSize(f.size) }})</span></div>
+                                        <div class="font-black text-slate-800 dark:text-slate-100 text-sm flex items-center gap-2">
+                                            {{ f.name }} 
+                                            <span class="ml-1 text-[8px] text-slate-400 font-normal">({{ formatSize(f.size) }})</span>
+                                            <button v-if="f.history && f.history.length > 1" @click.stop="openHistory(f)" class="bg-amber-100 text-amber-600 px-1.5 py-0.5 rounded text-[9px] font-black hover:bg-amber-200 transition">
+                                                历史: {{f.history.length}}
+                                            </button>
+                                        </div>
                                         <div v-if="config.show_changelog && f.changelog" class="text-xs text-slate-400 font-bold mt-0.5 line-clamp-1 italic"># {{ f.changelog }}</div>
                                         <div v-if="config.show_md5" class="text-[8px] font-mono text-slate-300 mt-0.5 uppercase tracking-tighter opacity-50">MD5: {{ f.md5 }}</div>
                                         <div v-if="search" class="text-[8px] text-blue-400 font-black mt-1 uppercase">{{ getPath(f.folder_id) }}</div>
@@ -78,6 +84,31 @@
                 </table>
                 <div v-if="!loading && displayFolders.length===0 && displayFiles.length===0" class="p-32 text-center text-slate-300 font-black text-sm italic opacity-30 uppercase">EMPTY DIRECTORY</div>
             </div>
+            
+            <div v-if="historyModal.show" class="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 flex items-center justify-center p-4">
+                <div class="bg-white dark:bg-slate-800 rounded-[32px] w-full max-w-xl p-8 shadow-2xl border border-white/20 flex flex-col max-h-[80vh]">
+                    <div class="flex justify-between items-center mb-6">
+                        <div><h3 class="text-lg font-black uppercase tracking-tighter">{{historyModal.title}}</h3><p class="text-xs text-slate-400 font-bold">选择历史版本下载</p></div>
+                        <button @click="historyModal.show=false" class="bg-slate-100 dark:bg-slate-700 w-8 h-8 rounded-full flex items-center justify-center hover:scale-110 transition"><i class="ri-close-line"></i></button>
+                    </div>
+                    <div class="overflow-y-auto flex-1 pr-2">
+                        <div v-for="h in historyModal.list" class="flex items-center justify-between p-4 mb-2 bg-slate-50 dark:bg-slate-900/50 rounded-2xl hover:bg-blue-50 dark:hover:bg-slate-700 transition group">
+                            <div>
+                                <div class="flex items-center gap-2 mb-1">
+                                    <span class="bg-blue-100 text-blue-600 px-2 py-0.5 rounded text-[10px] font-black">{{h.version||'v1.0'}}</span>
+                                    <span class="text-[10px] text-slate-400 font-mono">{{h.git_commit}}</span>
+                                </div>
+                                <div class="text-xs text-slate-500 font-bold mb-0.5">{{h.date}} <span class="font-normal opacity-50">by {{h.publisher}}</span></div>
+                                <div class="text-[10px] text-slate-400 max-w-[200px] truncate">{{h.changelog}}</div>
+                            </div>
+                            <button @click="dl(h)" :disabled="h.downloading" class="bg-white dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-600 text-slate-700 dark:text-slate-200 px-4 py-2 rounded-xl font-black text-xs hover:border-blue-500 hover:text-blue-500 transition relative overflow-hidden w-24">
+                                <div v-if="h.downloading" class="absolute inset-0 bg-blue-100 dark:bg-blue-900/30 transition-all" :style="{width: h.progress + '%'}"></div>
+                                <span class="relative z-10">{{ h.downloading ? h.progress + '%' : '下载' }}</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
     <script>
@@ -87,6 +118,8 @@
                 const isDark = ref(localStorage.getItem('theme') === 'dark');
                 const config = ref({}); const allFiles = ref([]); const allFolders = ref([]);
                 const loading = ref(true); const search = ref(""); const currentFolderId = ref(0);
+                const historyModal = ref({ show: false, list: [], title: '' });
+                const openHistory = (f) => { historyModal.value.list = f.history; historyModal.value.title = f.name; historyModal.value.show = true; };
 
                 const formatSize = (b) => { if(!b) return '0 B'; const k=1024, s=['B','KB','MB','GB','TB'], i=Math.floor(Math.log(b)/Math.log(k)); return parseFloat((b/Math.pow(k,i)).toFixed(1))+' '+s[i]; };
                 const loadData = async () => {
@@ -97,8 +130,21 @@
                 };
 
                 const displayFiles = computed(() => {
-                    if(search.value) return allFiles.value.filter(f=>f.name.toLowerCase().includes(search.value.toLowerCase()));
-                    return allFiles.value.filter(f=>f.folder_id === currentFolderId.value);
+                    let list = allFiles.value;
+                    if(search.value) list = list.filter(f=>f.name.toLowerCase().includes(search.value.toLowerCase()));
+                    else list = list.filter(f=>f.folder_id === currentFolderId.value);
+                    
+                    // --- 聚合逻辑 ---
+                    const groups = {};
+                    list.forEach(f => {
+                        if(!groups[f.name]) groups[f.name] = [];
+                        groups[f.name].push(f);
+                    });
+                    return Object.values(groups).map(g => {
+                        const main = g[0];
+                        main.history = g;
+                        return main;
+                    });
                 });
                 const displayFolders = computed(() => {
                     if(search.value) return allFolders.value.filter(f=>f.name.toLowerCase().includes(search.value.toLowerCase()));
@@ -134,7 +180,7 @@
                 };
 
                 onMounted(() => { if(isDark.value) document.documentElement.classList.add('dark'); loadData(); });
-                return { isDark, toggleDark: () => { isDark.value = !isDark.value; document.documentElement.classList.toggle('dark'); localStorage.setItem('theme', isDark.value?'dark':'light'); }, config, loading, search, displayFiles, displayFolders, breadcrumbs, navTo, goUp, dl, getFileIcon: (n) => n.includes('Image') ? 'ri-pulse-line' : (n.endsWith('.pdf') ? 'ri-file-pdf-line' : 'ri-file-3-line'), getIconBg: (n) => n.includes('Image') ? 'bg-purple-100 text-purple-600' : (n.endsWith('.pdf') ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'), currentFolderId, getPath, formatSize };
+                return { isDark, toggleDark: () => { isDark.value = !isDark.value; document.documentElement.classList.toggle('dark'); localStorage.setItem('theme', isDark.value?'dark':'light'); }, config, loading, search, displayFiles, displayFolders, breadcrumbs, navTo, goUp, dl, getFileIcon: (n) => n.includes('Image') ? 'ri-pulse-line' : (n.endsWith('.pdf') ? 'ri-file-pdf-line' : 'ri-file-3-line'), getIconBg: (n) => n.includes('Image') ? 'bg-purple-100 text-purple-600' : (n.endsWith('.pdf') ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'), currentFolderId, getPath, formatSize, historyModal, openHistory };
             }
         }).mount('#app');
     </script>

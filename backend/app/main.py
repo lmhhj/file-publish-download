@@ -1,4 +1,4 @@
-import os, hashlib, logging, httpx
+import os, hashlib, logging, httpx, time
 import base64
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.backends import default_backend
@@ -256,7 +256,11 @@ def del_folder(fid: int, user: User = Depends(get_user), db: Session = Depends(g
 
 @app.post("/api/upload")
 async def upload(background_tasks: BackgroundTasks, file: UploadFile = File(...), version: str = Form(""), changelog: str = Form(""), git_commit: str = Form(""), folder_id: int = Form(0), user: User = Depends(get_user), db: Session = Depends(get_db)):
-    content = await file.read(); save_path = os.path.join(UPLOAD_DIR, file.filename)
+    content = await file.read()
+    # 增量修改：防止物理文件覆盖，添加时间戳，数据库仍存原名
+    real_filename = f"{int(time.time())}_{file.filename}"
+    save_path = os.path.join(UPLOAD_DIR, real_filename)
+    
     with open(save_path, "wb") as f: f.write(content)
     new_file = FileRecord(filename=file.filename, filepath=save_path, md5=hashlib.md5(content).hexdigest(), version=version, changelog=changelog, git_commit=git_commit, submitter=user.username, folder_id=folder_id, filesize=len(content))
     db.add(new_file); db.commit()

@@ -101,6 +101,9 @@
                                         <td class="px-8 py-6 text-center"><div class="text-xs font-black">{{f.version || '-'}}</div><div class="text-[9px] text-slate-400 font-mono mt-1" v-if="f.git_commit">{{f.git_commit}}</div></td>
                                         <td class="px-8 py-6 text-xs text-slate-500 max-w-xs truncate">{{f.changelog}}</td>
                                         <td class="px-8 py-6 text-right flex justify-end gap-2">
+                                            <button v-if="f.history && f.history.length > 1" @click.stop="openHistory(f)" class="text-amber-500 p-2 hover:bg-amber-50 rounded-lg transition" title="版本追溯">
+                                                <div class="flex items-center gap-1"><i class="ri-history-line text-xl"></i><span class="text-xs font-black">{{f.history.length}}</span></div>
+                                            </button>
                                             <button v-if="role==='admin'||f.submitter===currentUser" @click="openEdit(f)" class="text-blue-500 p-2 hover:bg-blue-50 rounded-lg transition"><i class="ri-edit-line text-xl"></i></button>
                                             <button v-if="role==='admin'||f.submitter===currentUser" @click="delF(f.id)" class="text-red-500 p-2 hover:bg-red-50 rounded-lg transition"><i class="ri-delete-bin-line text-xl"></i></button>
                                         </td>
@@ -136,7 +139,32 @@
                     
                     <div v-if="showUserEditModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 flex items-center justify-center p-4 animate-in fade-in duration-200"><div class="bg-white dark:bg-slate-800 rounded-[40px] w-full max-w-md p-10 shadow-2xl border border-white/20"><h3 class="text-2xl font-black mb-8 text-center uppercase tracking-tighter">账号修改</h3><div class="space-y-5"><div><label class="text-[10px] font-black text-slate-400 uppercase block mb-1 px-2">账号 ID</label><input v-model="userEditForm.username" class="w-full p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border-0 font-bold shadow-inner"></div><div><label class="text-[10px] font-black text-slate-400 uppercase block mb-1 px-2">姓名</label><input v-model="userEditForm.full_name" class="w-full p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border-0 font-bold shadow-inner"></div><div><label class="text-[10px] font-black text-slate-400 uppercase block mb-1 px-2">新密码 (留空则不改)</label><input v-model="userEditForm.password" type="password" class="w-full p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border-0 font-bold shadow-inner"></div></div><div class="flex gap-4 mt-10"><button @click="showUserEditModal=false" class="flex-1 py-4 font-black text-slate-400 hover:bg-slate-100 rounded-2xl transition">取消</button><button @click="confirmUserEdit" class="flex-1 py-4 bg-blue-600 text-white rounded-2xl font-black shadow-xl">保存修改</button></div></div></div>
                     <div v-if="showFolderModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 flex items-center justify-center p-4"><div class="bg-white dark:bg-slate-800 rounded-[40px] w-full max-w-md p-10 shadow-2xl border border-white/20 text-center"><h3 class="text-2xl font-black mb-6">新建文件夹</h3><input v-model="newFolderName" placeholder="输入名称..." class="w-full p-5 bg-slate-50 dark:bg-slate-900 rounded-2xl outline-none font-bold mb-8 focus:ring-4 focus:ring-amber-500/10 border-0" @keyup.enter="confirmCreateFolder"><div class="flex gap-4"><button @click="showFolderModal=false" class="flex-1 py-4 font-black text-slate-400 hover:bg-slate-100 rounded-2xl transition">取消</button><button @click="confirmCreateFolder" class="flex-1 py-4 bg-amber-500 text-white rounded-2xl font-black shadow-xl">立即创建</button></div></div></div>
-                    <div v-if="editModal.show" class="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 flex items-center justify-center p-4"><div class="bg-white dark:bg-slate-800 rounded-[40px] w-full max-w-lg p-10 shadow-2xl border border-white/20 text-center"><h3 class="text-2xl font-black mb-8 tracking-tighter uppercase">编辑资源</h3><div class="space-y-5 text-left"><div><label class="text-xs font-black text-slate-400 mb-1 block uppercase px-1">文件名</label><div class="p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl font-mono text-sm opacity-50">{{editModal.data.name}}</div></div><div class="flex gap-4"><div class="flex-1"><label class="text-xs font-bold text-slate-400 mb-1 block px-1">版本</label><input v-model="editModal.form.version" class="w-full p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border-0 font-bold focus:ring-2 focus:ring-blue-500/10"></div><div class="flex-1"><label class="text-xs font-bold text-slate-400 mb-1 block px-1">Git ID</label><input v-model="editModal.form.git_commit" class="w-full p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border-0 font-mono text-xs focus:ring-2 focus:ring-blue-500/10"></div></div><div><label class="text-xs font-bold text-slate-400 mb-1 block px-1">说明</label><textarea v-model="editModal.form.changelog" class="w-full p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl h-32 border-0 resize-none outline-none font-bold focus:ring-2 focus:ring-blue-500/10"></textarea></div></div><div class="flex gap-4 mt-8"><button @click="editModal.show=false" class="flex-1 py-4 font-black text-slate-400 hover:bg-slate-100 rounded-2xl transition">取消</button><button @click="saveEdit" class="flex-1 py-4 bg-blue-600 text-white font-black rounded-2xl shadow-xl">保存修改</button></div></div></div>
+                    
+                    <div v-if="editModal.show" class="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[60] flex items-center justify-center p-4"><div class="bg-white dark:bg-slate-800 rounded-[40px] w-full max-w-lg p-10 shadow-2xl border border-white/20 text-center"><h3 class="text-2xl font-black mb-8 tracking-tighter uppercase">编辑资源</h3><div class="space-y-5 text-left"><div><label class="text-xs font-black text-slate-400 mb-1 block uppercase px-1">文件名</label><div class="p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl font-mono text-sm opacity-50">{{editModal.data.name}}</div></div><div class="flex gap-4"><div class="flex-1"><label class="text-xs font-bold text-slate-400 mb-1 block px-1">版本</label><input v-model="editModal.form.version" class="w-full p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border-0 font-bold focus:ring-2 focus:ring-blue-500/10"></div><div class="flex-1"><label class="text-xs font-bold text-slate-400 mb-1 block px-1">Git ID</label><input v-model="editModal.form.git_commit" class="w-full p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border-0 font-mono text-xs focus:ring-2 focus:ring-blue-500/10"></div></div><div><label class="text-xs font-bold text-slate-400 mb-1 block px-1">说明</label><textarea v-model="editModal.form.changelog" class="w-full p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl h-32 border-0 resize-none outline-none font-bold focus:ring-2 focus:ring-blue-500/10"></textarea></div></div><div class="flex gap-4 mt-8"><button @click="editModal.show=false" class="flex-1 py-4 font-black text-slate-400 hover:bg-slate-100 rounded-2xl transition">取消</button><button @click="saveEdit" class="flex-1 py-4 bg-blue-600 text-white font-black rounded-2xl shadow-xl">保存修改</button></div></div></div>
+                    
+                    <div v-if="historyModal.show" class="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 flex items-center justify-center p-4">
+                        <div class="bg-white dark:bg-slate-800 rounded-[40px] w-full max-w-2xl p-8 shadow-2xl border border-white/20 flex flex-col max-h-[80vh]">
+                            <div class="flex justify-between items-center mb-6">
+                                <h3 class="text-xl font-black uppercase tracking-tighter">版本追溯: {{historyModal.title}}</h3>
+                                <button @click="historyModal.show=false" class="text-slate-400 hover:text-slate-600"><i class="ri-close-circle-fill text-3xl"></i></button>
+                            </div>
+                            <div class="overflow-y-auto flex-1 pr-2">
+                                <table class="w-full text-left">
+                                    <thead class="bg-slate-50 dark:bg-slate-900/50 text-[10px] font-black uppercase text-slate-400 sticky top-0"><tr><th class="p-4">版本/Git</th><th class="p-4">上传时间</th><th class="p-4">变更记录</th><th class="p-4 text-right">操作</th></tr></thead>
+                                    <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
+                                        <tr v-for="h in historyModal.list" class="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition">
+                                            <td class="p-4"><div class="font-black text-xs">{{h.version||'v1.0'}}</div><div class="text-[9px] font-mono text-slate-400">{{h.git_commit}}</div></td>
+                                            <td class="p-4 text-xs font-bold text-slate-500">{{h.date}}</td>
+                                            <td class="p-4 text-xs text-slate-500 max-w-[150px] truncate">{{h.changelog}}</td>
+                                            <td class="p-4 text-right">
+                                                <button @click="openEdit(h)" class="text-blue-600 text-xs font-black bg-blue-50 px-3 py-1 rounded-lg hover:bg-blue-100 transition">编辑此版</button>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </main>
         </template>
@@ -165,6 +193,10 @@
                 const showFolderModal = ref(false); const newFolderName = ref('');
                 // 关键修正：确保 tabNames 包含 wechat
                 const tabNames = { files: '资源管理', upload: '发布固件', users: '成员授权', wechat: '微信通知', cfg: '前端配置', pass: '安全中心' };
+                // 历史模态框
+                const historyModal = ref({ show: false, list: [], title: '' });
+                const openHistory = (f) => { historyModal.value.list = f.history; historyModal.value.title = f.name; historyModal.value.show = true; };
+
 
                 const formatSize = (b) => { if(!b) return '0 B'; const k=1024, s=['B','KB','MB','GB','TB'], i=Math.floor(Math.log(b)/Math.log(k)); return parseFloat((b/Math.pow(k,i)).toFixed(1))+' '+s[i]; };
                 const api = async (u, o={}) => {
@@ -210,7 +242,24 @@
                 
                 // 确保 setup return 包含 template 中使用的所有变量和函数
                 return { isDark, toggleDark, token, role, currentUser, tab, allFiles, allFolders, userList, config, currentFolderId, loginForm, form, uForm, userEditForm, showUserEditModal, openUserEdit, confirmUserEdit, testWechat, newP, drag, uping, file, editModal, switchTab, navTo, showFolderModal, newFolderName, confirmCreateFolder, delFolder, doUp, doLogin, onDrop, onFile, delF, openEdit, saveEdit, addU, delU, saveCfg, setPw, logout, tabNames, formatSize, uploadProgress, searchQuery, onlyMyFiles,
-                    displayFiles: computed(() => { let list = allFiles.value; if(searchQuery.value) list = list.filter(f => f.name.toLowerCase().includes(searchQuery.value.toLowerCase())); else list = list.filter(f => f.folder_id === currentFolderId.value); if(onlyMyFiles.value) list = list.filter(f => f.submitter === currentUser.value); return list; }),
+                    historyModal, openHistory,
+                    displayFiles: computed(() => { 
+                        let list = allFiles.value; 
+                        if(searchQuery.value) list = list.filter(f => f.name.toLowerCase().includes(searchQuery.value.toLowerCase())); 
+                        else list = list.filter(f => f.folder_id === currentFolderId.value); 
+                        if(onlyMyFiles.value) list = list.filter(f => f.submitter === currentUser.value); 
+                        // --- 聚合逻辑 ---
+                        const groups = {};
+                        list.forEach(f => {
+                            if(!groups[f.name]) groups[f.name] = [];
+                            groups[f.name].push(f);
+                        });
+                        return Object.values(groups).map(g => {
+                            const main = g[0]; // API已按时间倒序，第一个即最新
+                            main.history = g;  // 将所有历史版本挂载到该对象
+                            return main;
+                        });
+                    }),
                     displayFolders: computed(() => { let list = allFolders.value; if(searchQuery.value) list = list.filter(f => f.name.toLowerCase().includes(searchQuery.value.toLowerCase())); else list = list.filter(f => f.parent_id === currentFolderId.value); return list; }),
                     breadcrumbs: computed(() => { const path = []; let curr = allFolders.value.find(f => f.id === currentFolderId.value); while(curr) { path.unshift(curr); curr = allFolders.value.find(f => f.id === curr.parent_id); } return path; }), getFileIcon: (n) => 'ri-file-3-line'
                 };
