@@ -201,8 +201,10 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = 
 def get_data(db: Session = Depends(get_db)):
     users_map = {u.username: (u.full_name or u.username) for u in db.query(User).all()}
     files_db = db.query(FileRecord).order_by(FileRecord.upload_date.desc()).all()
+    # 关键修复：URL 使用 filepath 的真实文件名，确保 nginx 能找到物理文件
     files = [{
-        "id": f.id, "name": f.filename, "url": f"/files/{f.filename}",
+        "id": f.id, "name": f.filename, 
+        "url": f"/files/{os.path.basename(f.filepath)}",  # <-- 这里修改了：使用物理文件名作为下载路径
         "md5": f.md5, "version": f.version, "changelog": f.changelog,
         "git_commit": f.git_commit, 
         "submitter": f.submitter,
