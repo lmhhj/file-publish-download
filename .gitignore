@@ -12,6 +12,7 @@ __pycache__/
 .pytest_cache/
 .DS_Store
 Thumbs.db
+.superpowers/
 
 # --- 环境变量与密钥 ---
 .env
