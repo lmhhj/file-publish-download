@@ -14,6 +14,10 @@ __pycache__/
 Thumbs.db
 .superpowers/
 
+# --- 本地测试与文档草稿 ---
+docs/
+tests/
+
 # --- 环境变量与密钥 ---
 .env
 .venv

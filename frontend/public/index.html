@@ -2,107 +2,405 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>硬件资源下载站点</title>
     <link rel="icon" href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.svg" type="image/svg+xml">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
     <script>tailwind.config = { darkMode: 'class' }</script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Fira+Sans:wght@300;400;500;600;700;800&display=swap');
+
+        :root {
+            --bg: #edf6f9;
+            --ink: #14222b;
+            --muted: #526875;
+            --soft: #eef8fa;
+            --glass: rgba(255, 255, 255, .58);
+            --glass-strong: rgba(255, 255, 255, .76);
+            --line: rgba(88, 118, 132, .20);
+            --line-strong: rgba(88, 118, 132, .34);
+            --cyan: #1e9ec4;
+            --mint: #16b79c;
+            --coral: #f06f61;
+            --violet: #8d8cf5;
+            --focus: 0 0 0 3px rgba(30, 158, 196, .22);
+        }
+
+        .dark {
+            --bg: #081216;
+            --ink: #edf8fb;
+            --muted: #9fb3bc;
+            --soft: #0d1c22;
+            --glass: rgba(14, 28, 35, .58);
+            --glass-strong: rgba(16, 33, 41, .78);
+            --line: rgba(196, 229, 237, .16);
+            --line-strong: rgba(196, 229, 237, .28);
+            --cyan: #5bd8ff;
+            --mint: #5ce3c8;
+            --coral: #ff9a8d;
+            --violet: #b4b3ff;
+            --focus: 0 0 0 3px rgba(91, 216, 255, .25);
+        }
+
+        html { scroll-behavior: smooth; }
+
+        body {
+            min-height: 100vh;
+            font-family: "Fira Sans", "PingFang SC", "Microsoft YaHei", sans-serif;
+            color: var(--ink);
+            background:
+                radial-gradient(circle at 10% -5%, rgba(82, 186, 214, .32), transparent 31rem),
+                radial-gradient(circle at 86% 4%, rgba(240, 111, 97, .22), transparent 27rem),
+                radial-gradient(circle at 78% 78%, rgba(72, 214, 178, .22), transparent 28rem),
+                linear-gradient(135deg, #f7fbfc 0%, var(--bg) 48%, #f2f4ff 100%);
+            overflow-x: hidden;
+        }
+
+        .dark body {
+            background:
+                radial-gradient(circle at 8% -6%, rgba(30, 158, 196, .28), transparent 30rem),
+                radial-gradient(circle at 88% 4%, rgba(141, 140, 245, .18), transparent 27rem),
+                radial-gradient(circle at 72% 86%, rgba(22, 183, 156, .18), transparent 28rem),
+                linear-gradient(135deg, #061014 0%, #081216 50%, #0d111d 100%);
+        }
+
+        body::before {
+            content: "";
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            opacity: .18;
+            background-image:
+                linear-gradient(rgba(255,255,255,.38) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,.30) 1px, transparent 1px);
+            background-size: 44px 44px;
+            mask-image: linear-gradient(to bottom, rgba(0,0,0,.9), transparent 78%);
+        }
+
+        .font-mono {
+            font-family: "Fira Code", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        }
+
+        .glass-frame,
+        .glass-panel,
+        .glass-popover {
+            border: 1px solid var(--line);
+            background: var(--glass);
+            -webkit-backdrop-filter: blur(22px) saturate(145%);
+            backdrop-filter: blur(22px) saturate(145%);
+            box-shadow: 0 24px 80px rgba(39, 72, 84, .16);
+        }
+
+        .dark .glass-frame,
+        .dark .glass-panel,
+        .dark .glass-popover {
+            box-shadow: 0 24px 90px rgba(0, 0, 0, .42);
+        }
+
+        .glass-frame {
+            border-radius: .5rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .glass-frame::after {
+            content: "";
+            position: absolute;
+            inset: 1px;
+            pointer-events: none;
+            border-radius: .45rem;
+            background: linear-gradient(130deg, rgba(255,255,255,.42), transparent 32%, rgba(255,255,255,.18) 66%, transparent);
+            opacity: .55;
+        }
+
+        .glass-panel {
+            border-radius: .5rem;
+            overflow: hidden;
+        }
+
+        .glass-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: .45rem;
+            border-radius: .5rem;
+            border: 1px solid var(--line);
+            background: rgba(255, 255, 255, .56);
+            color: var(--ink);
+            font-weight: 800;
+            cursor: pointer;
+            transition: background-color .2s ease, border-color .2s ease, color .2s ease, box-shadow .2s ease;
+        }
+
+        .dark .glass-btn {
+            background: rgba(255, 255, 255, .07);
+        }
+
+        .glass-btn:hover {
+            border-color: var(--line-strong);
+            background: rgba(255, 255, 255, .78);
+        }
+
+        .dark .glass-btn:hover {
+            background: rgba(255, 255, 255, .12);
+        }
+
+        .primary-btn {
+            border-color: rgba(30, 158, 196, .34);
+            background: linear-gradient(135deg, rgba(30,158,196,.92), rgba(22,183,156,.92));
+            color: white;
+            box-shadow: 0 14px 36px rgba(30, 158, 196, .24);
+        }
+
+        .primary-btn:hover {
+            background: linear-gradient(135deg, rgba(21,141,179,.96), rgba(16,164,139,.96));
+            color: white;
+        }
+
+        .glass-input {
+            border: 1px solid var(--line);
+            background: rgba(255, 255, 255, .56);
+            color: var(--ink);
+            outline: none;
+            transition: border-color .2s ease, box-shadow .2s ease, background-color .2s ease;
+        }
+
+        .dark .glass-input {
+            background: rgba(255, 255, 255, .07);
+        }
+
+        .glass-input:focus,
+        .glass-btn:focus-visible,
+        button:focus-visible,
+        a:focus-visible {
+            outline: none;
+            box-shadow: var(--focus);
+            border-color: var(--cyan);
+        }
+
+        .table-wrap {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .resource-table {
+            min-width: 940px;
+        }
+
+        .soft-row {
+            transition: background-color .18s ease, box-shadow .18s ease;
+        }
+
+        .soft-row:hover {
+            background: rgba(255,255,255,.46);
+            box-shadow: inset 3px 0 0 rgba(30, 158, 196, .72);
+        }
+
+        .dark .soft-row:hover {
+            background: rgba(255,255,255,.07);
+        }
+
+        .pill {
+            border: 1px solid var(--line);
+            background: rgba(255,255,255,.48);
+            color: var(--muted);
+        }
+
+        .dark .pill {
+            background: rgba(255,255,255,.07);
+        }
+
+        .modal-backdrop {
+            background:
+                radial-gradient(circle at 18% 0%, rgba(30,158,196,.16), transparent 28rem),
+                rgba(232, 242, 245, .58);
+            -webkit-backdrop-filter: blur(10px) saturate(120%);
+            backdrop-filter: blur(10px) saturate(120%);
+        }
+
+        .dark .modal-backdrop {
+            background:
+                radial-gradient(circle at 18% 0%, rgba(91,216,255,.18), transparent 28rem),
+                rgba(6, 16, 20, .38);
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation-duration: .01ms !important;
+                animation-iteration-count: 1 !important;
+                scroll-behavior: auto !important;
+                transition-duration: .01ms !important;
+            }
+        }
+    </style>
 </head>
-<body class="bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 transition-colors duration-300">
-    <div id="app" class="min-h-screen py-4 px-4">
-        <div class="max-w-7xl mx-auto">
-            <div class="flex justify-between items-end mb-6">
-                <div><h1 class="text-3xl font-black text-slate-900 dark:text-white tracking-tighter flex items-center gap-3"><i class="ri-cloud-windy-line text-blue-600"></i> {{ config.site_title }}</h1><p class="text-slate-400 mt-1 font-bold text-sm">{{ config.site_subtitle }}</p></div>
-                <div class="flex items-center gap-4">
-                    <button @click="toggleDark" class="w-10 h-10 flex items-center justify-center rounded-xl bg-white dark:bg-slate-800 border border-slate-200 text-slate-500 shadow-sm transition hover:scale-105"><i :class="isDark?'ri-sun-line text-yellow-500 text-xl':'ri-moon-line text-xl'"></i></button>
-                    <a href="/admin/" target="_blank" class="bg-slate-900 dark:bg-blue-600 text-white px-5 py-2.5 rounded-xl font-black shadow-xl text-sm hover:opacity-90 transition">后台管理 <i class="ri-arrow-right-up-line ml-1"></i></a>
-                </div>
-            </div>
-
-            <div class="flex flex-wrap justify-between items-center mb-6 gap-4">
-                <div class="flex items-center gap-2 text-[10px] font-black text-slate-400 overflow-x-auto pb-1 scrollbar-hide">
-                    <button @click="navTo(0)" class="hover:text-blue-600 flex items-center gap-1 whitespace-nowrap"><i class="ri-home-4-line text-sm"></i> 首页</button>
-                    <template v-for="bc in breadcrumbs"><i class="ri-arrow-right-s-line text-slate-300"></i><button @click="navTo(bc.id)" class="hover:text-blue-600 whitespace-nowrap uppercase">{{bc.name}}</button></template>
-                </div>
-                <div class="relative w-full md:w-64"><i class="ri-search-line absolute left-4 top-2 text-slate-400"></i><input v-model="search" placeholder="搜索资源..." class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl pl-10 pr-4 py-2 font-bold outline-none w-full shadow-sm text-xs"></div>
-            </div>
-
-            <div class="bg-white dark:bg-slate-800 rounded-[28px] shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden min-h-[500px]">
-                <table class="w-full text-left">
-                    <thead class="bg-slate-50 dark:bg-slate-900/50 text-[10px] font-black uppercase tracking-widest text-slate-400">
-                        <tr><th class="px-8 py-5">名称与描述</th><th v-if="config.show_version" class="px-8 py-5">版本/Git</th><th v-if="config.show_date" class="px-8 py-5">日期</th><th v-if="config.show_submitter" class="px-8 py-5">发布人</th><th class="px-8 py-5 text-right">下载</th></tr>
-                    </thead>
-                    <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
-                        <tr v-if="currentFolderId!==0 && !search" @click="goUp" class="hover:bg-slate-50 dark:hover:bg-slate-900 cursor-pointer text-slate-400 transition"><td colspan="5" class="px-8 py-3 font-black text-xs flex items-center gap-2"><i class="ri-arrow-go-back-line"></i> 返回上一层</td></tr>
-                        
-                        <tr v-for="f in displayFolders" @click="navTo(f.id)" class="hover:bg-amber-50/20 cursor-pointer group transition">
-                            <td colspan="5" class="px-8 py-4 flex items-center gap-4">
-                                <div :class="f.parent_id === 0 ? 'bg-amber-100 text-amber-500' : 'bg-slate-100 text-slate-400'" class="w-11 h-11 rounded-xl flex items-center justify-center text-2xl shadow-sm transition group-hover:scale-105"><i :class="f.parent_id === 0 ? 'ri-folder-3-fill' : 'ri-folder-open-line'"></i></div>
-                                <div>
-                                    <div :class="f.parent_id===0 ? 'text-lg' : 'text-sm'" class="font-black text-slate-800 dark:text-slate-100 uppercase">{{ f.name }}</div>
-                                    <div v-if="search" class="text-[8px] text-blue-400 font-black mt-1 uppercase">{{ getPath(f.id) }}</div>
-                                </div>
-                                <i class="ri-arrow-right-s-line ml-auto text-slate-200 text-2xl group-hover:text-amber-500 transition"></i>
-                            </td>
-                        </tr>
-
-                        <tr v-for="f in displayFiles" class="hover:bg-blue-50/20 group transition">
-                            <td class="px-8 py-4">
-                                <div class="flex items-center gap-4">
-                                    <div :class="getIconBg(f.name)" class="w-10 h-10 rounded-xl flex items-center justify-center text-xl shadow-sm transition group-hover:rotate-3"><i :class="getFileIcon(f.name)"></i></div>
-                                    <div class="min-w-0">
-                                        <div class="font-black text-slate-800 dark:text-slate-100 text-sm flex items-center gap-2">
-                                            {{ f.name }} 
-                                            <span class="ml-1 text-[8px] text-slate-400 font-normal">({{ formatSize(f.size) }})</span>
-                                            <button v-if="f.history && f.history.length > 1" @click.stop="openHistory(f)" class="bg-amber-100 text-amber-600 px-1.5 py-0.5 rounded text-[9px] font-black hover:bg-amber-200 transition">
-                                                历史: {{f.history.length}}
-                                            </button>
-                                        </div>
-                                        <div v-if="config.show_changelog && f.changelog" class="text-xs text-slate-400 font-bold mt-0.5 line-clamp-1 italic"># {{ f.changelog }}</div>
-                                        <div v-if="config.show_md5" class="text-[8px] font-mono text-slate-300 mt-0.5 uppercase tracking-tighter opacity-50">MD5: {{ f.md5 }}</div>
-                                        <div v-if="search" class="text-[8px] text-blue-400 font-black mt-1 uppercase">{{ getPath(f.folder_id) }}</div>
-                                    </div>
-                                </div>
-                            </td>
-                            <td v-if="config.show_version" class="px-8 py-4">
-                                <div class="flex flex-col gap-1">
-                                    <span class="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-2 py-0.5 rounded-lg text-[10px] font-black w-fit block shadow-sm">{{ f.version || 'v1.0' }}</span>
-                                    <span v-if="config.show_git_commit && f.git_commit" class="text-[8px] font-mono text-slate-400 opacity-60 block truncate max-w-[60px]"><i class="ri-git-branch-line"></i> {{ f.git_commit }}</span>
-                                </div>
-                            </td>
-                            <td v-if="config.show_date" class="px-8 py-4 text-xs font-bold text-slate-500 whitespace-nowrap">{{ f.date.split(' ')[0] }}</td>
-                            <td v-if="config.show_submitter" class="px-8 py-4"><div class="flex items-center gap-2"><div class="w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-600 flex items-center justify-center text-[10px] font-black uppercase shadow-sm">{{ f.publisher[0] }}</div><span class="text-xs font-bold text-slate-600">{{ f.publisher }}</span></div></td>
-                            <td class="px-8 py-4 text-right">
-                                <button @click="dl(f)" :disabled="f.downloading" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-1.5 rounded-xl font-black shadow-lg transition active:scale-95 min-w-[80px] relative overflow-hidden text-[10px]">
-                                    <div v-if="f.downloading" class="absolute inset-0 bg-blue-800 transition-all" :style="{width: f.progress + '%'}"></div>
-                                    <span class="relative z-10">{{ f.downloading ? f.progress + '%' : '下载' }}</span>
-                                </button>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-                <div v-if="!loading && displayFolders.length===0 && displayFiles.length===0" class="p-32 text-center text-slate-300 font-black text-sm italic opacity-30 uppercase">EMPTY DIRECTORY</div>
-            </div>
-            
-            <div v-if="historyModal.show" class="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 flex items-center justify-center p-4">
-                <div class="bg-white dark:bg-slate-800 rounded-[32px] w-full max-w-xl p-8 shadow-2xl border border-white/20 flex flex-col max-h-[80vh]">
-                    <div class="flex justify-between items-center mb-6">
-                        <div><h3 class="text-lg font-black uppercase tracking-tighter">{{historyModal.title}}</h3><p class="text-xs text-slate-400 font-bold">选择历史版本下载</p></div>
-                        <button @click="historyModal.show=false" class="bg-slate-100 dark:bg-slate-700 w-8 h-8 rounded-full flex items-center justify-center hover:scale-110 transition"><i class="ri-close-line"></i></button>
-                    </div>
-                    <div class="overflow-y-auto flex-1 pr-2">
-                        <div v-for="h in historyModal.list" class="flex items-center justify-between p-4 mb-2 bg-slate-50 dark:bg-slate-900/50 rounded-2xl hover:bg-blue-50 dark:hover:bg-slate-700 transition group">
-                            <div>
-                                <div class="flex items-center gap-2 mb-1">
-                                    <span class="bg-blue-100 text-blue-600 px-2 py-0.5 rounded text-[10px] font-black">{{h.version||'v1.0'}}</span>
-                                    <span class="text-[10px] text-slate-400 font-mono">{{h.git_commit}}</span>
-                                </div>
-                                <div class="text-xs text-slate-500 font-bold mb-0.5">{{h.date}} <span class="font-normal opacity-50">by {{h.publisher}}</span></div>
-                                <div class="text-[10px] text-slate-400 max-w-[200px] truncate">{{h.changelog}}</div>
+<body class="transition-colors duration-200">
+    <div id="app" class="relative min-h-screen px-4 py-4 sm:px-6 lg:px-8">
+        <div class="mx-auto max-w-7xl">
+            <section class="glass-frame mb-5 p-4 sm:p-5">
+                <div class="relative z-10 grid gap-5 lg:grid-cols-[1fr_340px] lg:items-start">
+                    <div>
+                        <div class="flex items-start gap-4">
+                            <div class="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[var(--cyan)] to-[var(--mint)] text-white shadow-lg shadow-cyan-500/20">
+                                <i class="ri-cloud-line text-2xl"></i>
                             </div>
-                            <button @click="dl(h)" :disabled="h.downloading" class="bg-white dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-600 text-slate-700 dark:text-slate-200 px-4 py-2 rounded-xl font-black text-xs hover:border-blue-500 hover:text-blue-500 transition relative overflow-hidden w-24">
-                                <div v-if="h.downloading" class="absolute inset-0 bg-blue-100 dark:bg-blue-900/30 transition-all" :style="{width: h.progress + '%'}"></div>
+                            <div class="min-w-0">
+                                <h1 class="text-3xl font-extrabold leading-tight text-[var(--ink)] sm:text-4xl">{{ config.site_title }}</h1>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex flex-col gap-3">
+                        <div class="flex w-full flex-wrap items-center justify-start gap-3 sm:justify-end">
+                            <button @click="toggleDark" aria-label="切换深色模式" class="glass-btn h-11 w-11">
+                                <i :class="isDark ? 'ri-sun-line text-lg text-[var(--coral)]' : 'ri-moon-line text-lg text-[var(--cyan)]'"></i>
+                            </button>
+                            <a href="/admin/" target="_blank" class="glass-btn primary-btn h-11 px-4 text-sm">
+                                <i class="ri-shield-user-line text-base"></i>
+                                后台管理
+                            </a>
+                        </div>
+                        <label class="relative block">
+                            <i class="ri-search-line absolute left-4 top-1/2 -translate-y-1/2 text-[var(--muted)]"></i>
+                            <input v-model="search" placeholder="搜索资源、固件、版本或文档..." class="glass-input h-12 w-full rounded-lg pl-11 pr-4 text-sm font-bold placeholder:text-slate-400 dark:placeholder:text-slate-500">
+                        </label>
+                    </div>
+                </div>
+
+                <div class="relative z-10 mt-5 flex items-center gap-2 overflow-x-auto rounded-lg border border-[var(--line)] bg-white/35 px-3 py-3 text-xs font-extrabold text-[var(--muted)] dark:bg-white/5" aria-label="资源路径">
+                    <button @click="navTo(0)" class="glass-btn h-8 shrink-0 px-3 text-[12px]">
+                        <i class="ri-home-4-line"></i>
+                        首页
+                    </button>
+                    <template v-for="bc in breadcrumbs">
+                        <i class="ri-arrow-right-s-line shrink-0 opacity-55"></i>
+                        <button @click="navTo(bc.id)" class="glass-btn h-8 shrink-0 px-3 text-[12px]">{{bc.name}}</button>
+                    </template>
+                </div>
+            </section>
+
+            <main class="glass-panel">
+                <div class="flex flex-col gap-4 border-b border-[var(--line)] bg-white/28 px-5 py-5 dark:bg-white/5 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                        <h2 class="text-lg font-extrabold text-[var(--ink)]">资源目录</h2>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2 text-xs font-extrabold">
+                        <span class="pill rounded-full px-3 py-1">{{ displayFolders.length }} 个目录</span>
+                        <span class="pill rounded-full px-3 py-1">{{ displayFiles.length }} 个资源</span>
+                    </div>
+                </div>
+
+                <div class="table-wrap">
+                    <table class="resource-table w-full text-left">
+                        <thead class="bg-white/30 text-[11px] font-extrabold uppercase text-[var(--muted)] dark:bg-white/5">
+                            <tr>
+                                <th class="px-6 py-4">名称</th>
+                                <th v-if="config.show_version" class="px-6 py-4">版本 / Git</th>
+                                <th v-if="config.show_date" class="px-6 py-4">日期</th>
+                                <th v-if="config.show_submitter" class="px-6 py-4">发布人</th>
+                                <th class="px-6 py-4 text-right">下载</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-[var(--line)] bg-white/20 dark:bg-transparent">
+                            <tr v-if="currentFolderId!==0 && !search" @click="goUp" class="soft-row cursor-pointer">
+                                <td colspan="5" class="px-6 py-3 text-xs font-extrabold text-[var(--muted)]">
+                                    <div class="flex items-center gap-2"><i class="ri-arrow-go-back-line"></i> 返回上一层</div>
+                                </td>
+                            </tr>
+
+                            <tr v-for="f in displayFolders" @click="navTo(f.id)" class="soft-row group cursor-pointer">
+                                <td colspan="5" class="px-6 py-4">
+                                    <div class="flex items-center gap-4">
+                                        <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-[var(--line)] bg-white/45 text-xl text-[var(--cyan)] dark:bg-white/7">
+                                            <i :class="f.parent_id === 0 ? 'ri-folder-3-fill' : 'ri-folder-open-line'"></i>
+                                        </div>
+                                        <div class="min-w-0">
+                                            <div class="truncate text-sm font-extrabold text-[var(--ink)]">{{ f.name }}</div>
+                                            <div v-if="search" class="mt-1 truncate text-[11px] font-semibold text-[var(--muted)]">{{ getPath(f.id) }}</div>
+                                        </div>
+                                        <i class="ri-arrow-right-s-line ml-auto text-xl text-[var(--muted)] opacity-50 transition-colors group-hover:text-[var(--cyan)] group-hover:opacity-100"></i>
+                                    </div>
+                                </td>
+                            </tr>
+
+                            <tr v-for="f in displayFiles" class="soft-row group">
+                                <td class="px-6 py-4">
+                                    <div class="flex items-start gap-4">
+                                        <div :class="getIconBg(f.name)" class="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border text-xl">
+                                            <i :class="getFileIcon(f.name)"></i>
+                                        </div>
+                                        <div class="min-w-0">
+                                            <div class="flex flex-wrap items-center gap-2">
+                                                <span class="break-all text-sm font-extrabold text-[var(--ink)]">{{ f.name }}</span>
+                                                <span class="font-mono text-[11px] font-semibold text-[var(--muted)]">{{ formatSize(f.size) }}</span>
+                                                <button v-if="f.history && f.history.length > 1" @click.stop="openHistory(f)" class="glass-btn h-7 px-2 text-[11px]">
+                                                    <i class="ri-history-line"></i>
+                                                    {{f.history.length}} 版
+                                                </button>
+                                            </div>
+                                            <div v-if="config.show_changelog && f.changelog" class="mt-1 line-clamp-1 text-xs font-semibold text-[var(--muted)]">{{ f.changelog }}</div>
+                                            <div v-if="config.show_md5" class="font-mono mt-1 truncate text-[10px] font-semibold text-[var(--muted)] opacity-75">MD5 {{ f.md5 }}</div>
+                                            <div v-if="search" class="mt-1 truncate text-[11px] font-bold text-[var(--cyan)]">{{ getPath(f.folder_id) }}</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td v-if="config.show_version" class="px-6 py-4">
+                                    <div class="flex flex-col items-start gap-1">
+                                        <span class="rounded-full bg-cyan-500/12 px-3 py-1 text-[13px] font-extrabold text-[var(--cyan)]">{{ f.version || 'v1.0' }}</span>
+                                        <span v-if="config.show_git_commit && f.git_commit" class="font-mono block max-w-[150px] truncate text-[11px] font-bold text-[var(--muted)]">
+                                            <i class="ri-git-branch-line"></i> {{ f.git_commit }}
+                                        </span>
+                                    </div>
+                                </td>
+                                <td v-if="config.show_date" class="px-6 py-4 text-xs font-bold text-[var(--muted)] whitespace-nowrap">{{ f.date.split(' ')[0] }}</td>
+                                <td v-if="config.show_submitter" class="px-6 py-4">
+                                    <div class="flex items-center gap-2">
+                                        <div class="flex h-8 w-8 items-center justify-center rounded-full bg-white/55 text-xs font-extrabold text-[var(--cyan)] dark:bg-white/10">{{ f.publisher[0] }}</div>
+                                        <span class="text-xs font-bold text-[var(--muted)]">{{ f.publisher }}</span>
+                                    </div>
+                                </td>
+                                <td class="px-6 py-4 text-right">
+                                    <button @click="dl(f)" :disabled="f.downloading" class="glass-btn primary-btn relative h-9 min-w-[88px] overflow-hidden px-4 text-xs disabled:cursor-wait disabled:opacity-80">
+                                        <div v-if="f.downloading" class="absolute inset-y-0 left-0 bg-white/24" :style="{width: f.progress + '%'}"></div>
+                                        <span class="relative z-10">{{ f.downloading ? f.progress + '%' : '下载' }}</span>
+                                    </button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div v-if="!loading && displayFolders.length===0 && displayFiles.length===0" class="px-6 py-24 text-center">
+                    <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-lg border border-[var(--line)] bg-white/36 text-[var(--muted)] dark:bg-white/7">
+                        <i class="ri-inbox-line text-2xl"></i>
+                    </div>
+                    <p class="mt-4 text-sm font-extrabold text-[var(--muted)]">当前目录暂无资源</p>
+                </div>
+            </main>
+
+            <div v-if="historyModal.show" class="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4">
+                <div class="glass-popover flex max-h-[82vh] w-full max-w-2xl flex-col rounded-lg p-5 sm:p-6">
+                    <div class="mb-5 flex items-start justify-between gap-4">
+                        <div>
+                            <h3 class="break-all text-lg font-extrabold text-[var(--ink)]">{{historyModal.title}}</h3>
+                        </div>
+                        <button @click="historyModal.show=false" aria-label="关闭历史版本" class="glass-btn h-10 w-10 shrink-0">
+                            <i class="ri-close-line text-lg"></i>
+                        </button>
+                    </div>
+                    <div class="min-h-0 flex-1 overflow-y-auto pr-1">
+                        <div v-for="h in historyModal.list" class="mb-2 flex items-center justify-between gap-4 rounded-lg border border-[var(--line)] bg-white/32 p-4 transition-colors hover:bg-white/48 dark:bg-white/5 dark:hover:bg-white/9">
+                            <div class="min-w-0">
+                                <div class="mb-2 flex flex-wrap items-center gap-2">
+                                    <span class="rounded-full bg-cyan-500/12 px-3 py-1 text-[13px] font-extrabold text-[var(--cyan)]">{{h.version||'v1.0'}}</span>
+                                    <span class="font-mono max-w-[180px] truncate text-[11px] font-bold text-[var(--muted)]">{{h.git_commit}}</span>
+                                </div>
+                                <div class="text-xs font-bold text-[var(--muted)]">{{h.date}} <span class="opacity-70">发布人 {{h.publisher}}</span></div>
+                                <div class="mt-1 max-w-[300px] truncate text-xs font-semibold text-[var(--muted)]">{{h.changelog}}</div>
+                            </div>
+                            <button @click="dl(h)" :disabled="h.downloading" class="glass-btn relative h-9 w-24 overflow-hidden px-3 text-xs disabled:cursor-wait">
+                                <div v-if="h.downloading" class="absolute inset-y-0 left-0 bg-cyan-400/18" :style="{width: h.progress + '%'}"></div>
                                 <span class="relative z-10">{{ h.downloading ? h.progress + '%' : '下载' }}</span>
                             </button>
                         </div>
@@ -119,7 +417,19 @@
                 const config = ref({}); const allFiles = ref([]); const allFolders = ref([]);
                 const loading = ref(true); const search = ref(""); const currentFolderId = ref(0);
                 const historyModal = ref({ show: false, list: [], title: '' });
-                const openHistory = (f) => { historyModal.value.list = f.history; historyModal.value.title = f.name; historyModal.value.show = true; };
+                const versionParts = (version) => {
+                    const nums = String(version || '').match(/\d+/g);
+                    const parts = nums ? nums.map(n => Number(n)).slice(0, 6) : [-1, -1, -1, -1, -1, -1];
+                    while(parts.length < 6) parts.push(0);
+                    return parts;
+                };
+                const compareVersionDesc = (a, b) => {
+                    const av = versionParts(a.version), bv = versionParts(b.version);
+                    for(let i = 0; i < 6; i++) if(av[i] !== bv[i]) return bv[i] - av[i];
+                    return new Date(b.date || 0) - new Date(a.date || 0);
+                };
+                const sortVersions = (list) => [...list].sort(compareVersionDesc);
+                const openHistory = (f) => { historyModal.value.list = sortVersions(f.history || []); historyModal.value.title = f.name; historyModal.value.show = true; };
 
                 const formatSize = (b) => { if(!b) return '0 B'; const k=1024, s=['B','KB','MB','GB','TB'], i=Math.floor(Math.log(b)/Math.log(k)); return parseFloat((b/Math.pow(k,i)).toFixed(1))+' '+s[i]; };
                 const loadData = async () => {
@@ -133,16 +443,17 @@
                     let list = allFiles.value;
                     if(search.value) list = list.filter(f=>f.name.toLowerCase().includes(search.value.toLowerCase()));
                     else list = list.filter(f=>f.folder_id === currentFolderId.value);
-                    
-                    // --- 聚合逻辑 ---
+
                     const groups = {};
                     list.forEach(f => {
-                        if(!groups[f.name]) groups[f.name] = [];
-                        groups[f.name].push(f);
+                        const key = `${f.folder_id || 0}::${f.name}`;
+                        if(!groups[key]) groups[key] = [];
+                        groups[key].push(f);
                     });
                     return Object.values(groups).map(g => {
-                        const main = g[0];
-                        main.history = g;
+                        const sorted = sortVersions(g);
+                        const main = sorted[0];
+                        main.history = sorted;
                         return main;
                     });
                 });
@@ -170,7 +481,7 @@
                     xhr.onload = () => {
                         if(xhr.status === 200) {
                             const url = window.URL.createObjectURL(xhr.response);
-                            const link = document.createElement('a'); link.href = url; link.download = f.name;
+                            const link = document.createElement('a'); link.href = url; link.download = f.download_name || f.name;
                             document.body.appendChild(link); link.click();
                             document.body.removeChild(link); window.URL.revokeObjectURL(url);
                         }
@@ -179,8 +490,23 @@
                     xhr.onerror = () => { alert('下载异常'); f.downloading = false; }; xhr.send();
                 };
 
+                const getFileIcon = (n) => {
+                    const name = n.toLowerCase();
+                    if(name.endsWith('.pdf')) return 'ri-file-pdf-line';
+                    if(name.endsWith('.zip') || name.endsWith('.rar') || name.endsWith('.7z')) return 'ri-file-zip-line';
+                    if(name.endsWith('.bin') || name.endsWith('.img') || name.endsWith('.hex')) return 'ri-cpu-line';
+                    return 'ri-file-3-line';
+                };
+                const getIconBg = (n) => {
+                    const name = n.toLowerCase();
+                    if(name.endsWith('.pdf')) return 'border-rose-300/40 bg-rose-200/24 text-rose-500 dark:bg-rose-400/10';
+                    if(name.endsWith('.zip') || name.endsWith('.rar') || name.endsWith('.7z')) return 'border-orange-300/40 bg-orange-200/24 text-orange-500 dark:bg-orange-400/10';
+                    if(name.endsWith('.bin') || name.endsWith('.img') || name.endsWith('.hex')) return 'border-emerald-300/40 bg-emerald-200/24 text-emerald-500 dark:bg-emerald-400/10';
+                    return 'border-cyan-300/40 bg-cyan-200/24 text-cyan-600 dark:bg-cyan-400/10';
+                };
+
                 onMounted(() => { if(isDark.value) document.documentElement.classList.add('dark'); loadData(); });
-                return { isDark, toggleDark: () => { isDark.value = !isDark.value; document.documentElement.classList.toggle('dark'); localStorage.setItem('theme', isDark.value?'dark':'light'); }, config, loading, search, displayFiles, displayFolders, breadcrumbs, navTo, goUp, dl, getFileIcon: (n) => n.includes('Image') ? 'ri-pulse-line' : (n.endsWith('.pdf') ? 'ri-file-pdf-line' : 'ri-file-3-line'), getIconBg: (n) => n.includes('Image') ? 'bg-purple-100 text-purple-600' : (n.endsWith('.pdf') ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'), currentFolderId, getPath, formatSize, historyModal, openHistory };
+                return { isDark, toggleDark: () => { isDark.value = !isDark.value; document.documentElement.classList.toggle('dark'); localStorage.setItem('theme', isDark.value?'dark':'light'); }, config, loading, search, displayFiles, displayFolders, breadcrumbs, navTo, goUp, dl, getFileIcon, getIconBg, currentFolderId, getPath, formatSize, historyModal, openHistory };
             }
         }).mount('#app');
     </script>

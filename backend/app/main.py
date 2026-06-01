@@ -1,4 +1,4 @@
-import os, hashlib, logging, httpx, time
+import os, hashlib, logging, httpx, time, re
 import base64
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.backends import default_backend
@@ -163,6 +163,29 @@ def get_folder_path(folder_id: int, db: Session) -> str:
         curr_id = f.parent_id
     return "/" + "/".join(path_parts)
 
+def version_sort_key(version: Optional[str]):
+    nums = [int(n) for n in re.findall(r"\d+", version or "")]
+    if not nums:
+        return (-1, -1, -1, -1, -1, -1)
+    return tuple((nums + [0, 0, 0, 0, 0, 0])[:6])
+
+def file_record_sort_key(file_record: FileRecord):
+    upload_ts = file_record.upload_date.timestamp() if file_record.upload_date else 0
+    return (version_sort_key(file_record.version), upload_ts, file_record.id or 0)
+
+def normalize_git_commit(git_commit: Optional[str]) -> str:
+    git = (git_commit or "").strip()
+    if not git:
+        return ""
+    return git if git.lower().startswith("g") else f"g{git}"
+
+def build_download_name(filename: str, folder_name: str = "", git_commit: str = "") -> str:
+    folder = (folder_name or "").strip()
+    git = normalize_git_commit(git_commit)
+    if folder and folder != "根目录":
+        return f"{folder} -{git}-{filename}" if git else f"{folder} -{filename}"
+    return f"{git}-{filename}" if git else filename
+
 # 发送微信消息的核心逻辑
 # 修改后的发送函数
 def send_wechat_notify(content: str):
@@ -200,11 +223,15 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = 
 @app.get("/api/public/data")
 def get_data(db: Session = Depends(get_db)):
     users_map = {u.username: (u.full_name or u.username) for u in db.query(User).all()}
-    files_db = db.query(FileRecord).order_by(FileRecord.upload_date.desc()).all()
+    folders_db = db.query(Folder).all()
+    folder_names = {f.id: f.name for f in folders_db}
+    files_db = sorted(db.query(FileRecord).all(), key=file_record_sort_key, reverse=True)
     # 关键修复：URL 使用 filepath 的真实文件名，确保 nginx 能找到物理文件
     files = [{
         "id": f.id, "name": f.filename, 
         "url": f"/files/{os.path.basename(f.filepath)}",  # <-- 这里修改了：使用物理文件名作为下载路径
+        "download_name": build_download_name(f.filename, folder_names.get(f.folder_id or 0, ""), f.git_commit),
+        "folder_name": folder_names.get(f.folder_id or 0, ""),
         "md5": f.md5, "version": f.version, "changelog": f.changelog,
         "git_commit": f.git_commit, 
         "submitter": f.submitter,
@@ -212,7 +239,7 @@ def get_data(db: Session = Depends(get_db)):
         "date": f.upload_date.strftime("%Y-%m-%d %H:%M"), "folder_id": f.folder_id or 0,
         "size": f.filesize
     } for f in files_db]
-    folders = [{"id": f.id, "name": f.name, "parent_id": f.parent_id or 0} for f in db.query(Folder).all()]
+    folders = [{"id": f.id, "name": f.name, "parent_id": f.parent_id or 0} for f in folders_db]
     return {"files": files, "folders": folders, "config": db.query(Settings).first()}
 
 # --- 增量接口：微信通知测试 ---
@@ -251,6 +278,18 @@ async def verify_wechat(msg_signature: str = Query(None), timestamp: str = Query
 def create_folder(data: dict, user: User = Depends(get_user), db: Session = Depends(get_db)):
     db.add(Folder(name=data['name'], parent_id=data.get('parent_id', 0), creator=user.username))
     db.commit(); return {"status": "success"}
+
+@app.put("/api/admin/folders/{fid}")
+def rename_folder(fid: int, data: dict, user: User = Depends(get_user), db: Session = Depends(get_db)):
+    name = (data.get("name") or "").strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="目录名称不能为空")
+    folder = db.query(Folder).filter(Folder.id == fid).first()
+    if not folder:
+        raise HTTPException(status_code=404, detail="目录不存在")
+    folder.name = name
+    db.commit()
+    return {"status": "success"}
 
 @app.delete("/api/admin/folders/{fid}")
 def del_folder(fid: int, user: User = Depends(get_user), db: Session = Depends(get_db)):
@@ -292,6 +331,36 @@ def edit_file(fid: int, data: dict, user: User = Depends(get_user), db: Session 
             if k in data: setattr(f, k, data[k])
         db.commit()
     return {"status": "success"}
+
+@app.put("/api/admin/files/{fid}/group")
+def edit_file_group(fid: int, data: dict, user: User = Depends(get_user), db: Session = Depends(get_db)):
+    source = db.query(FileRecord).filter(FileRecord.id == fid).first()
+    if not source:
+        raise HTTPException(status_code=404, detail="文件不存在")
+
+    old_filename = source.filename
+    old_folder_id = source.folder_id or 0
+    records = db.query(FileRecord).filter(
+        FileRecord.filename == old_filename,
+        FileRecord.folder_id == old_folder_id
+    ).all()
+
+    if "filename" in data:
+        filename = (data.get("filename") or "").strip()
+        if not filename:
+            raise HTTPException(status_code=400, detail="文件名不能为空")
+        for item in records:
+            item.filename = filename
+
+    if "folder_id" in data:
+        folder_id = int(data.get("folder_id") or 0)
+        if folder_id != 0 and not db.query(Folder).filter(Folder.id == folder_id).first():
+            raise HTTPException(status_code=404, detail="目标目录不存在")
+        for item in records:
+            item.folder_id = folder_id
+
+    db.commit()
+    return {"status": "success", "updated": len(records)}
 
 @app.delete("/api/admin/files/{fid}")
 def del_file(fid: int, user: User = Depends(get_user), db: Session = Depends(get_db)):
