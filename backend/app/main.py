@@ -1,19 +1,14 @@
-import os, hashlib, logging, httpx, time, re
-import base64
-from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-from cryptography.hazmat.backends import default_backend
-from datetime import datetime, timedelta
-from typing import List, Optional
-from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form, Query, BackgroundTasks
-from fastapi.responses import PlainTextResponse
+import os, hashlib, logging, httpx, time, re, uuid
+from datetime import datetime
+from typing import Optional
+from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form, BackgroundTasks
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, text, or_
+from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from passlib.context import CryptContext
 from jose import jwt
-from pydantic import BaseModel
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -68,39 +63,13 @@ class Settings(Base):
     site_subtitle = Column(String, default="研发资源分发平台")
     # --- 增量：微信通知配置字段 ---
     wechat_enabled = Column(Boolean, default=False)
-    wechat_corpid = Column(String, default="")
-    wechat_agentid = Column(String, default="")
-    wechat_secret = Column(String, default="")
-    wechat_token = Column(String, default="")
-    wechat_aes_key = Column(String, default="")
-    wechat_proxy_url = Column(String, default="https://qyapi.weixin.qq.com")
-    wechat_whitelist = Column(String, default="")
     wechat_template = Column(String, default="{{user}} 在 {{path}} 目录发布了 {{filename}} 文件\n版本：{{version}}\n修改记录：{{changelog}}")
+    wechat_webhook_url = Column(String, default="")
+    wechat_mentioned_list = Column(String, default="")
+    wechat_mentioned_mobile_list = Column(String, default="")
+    wechat_mention_all = Column(Boolean, default=False)
 
 Base.metadata.create_all(bind=engine)
-
-class WXBizMsgCrypt:
-    def __init__(self, token: str, key: str, receiveid: str):
-        self.key = base64.b64decode(key + "=")
-        self.token = token
-        self.receiveid = receiveid
-
-    def verify_signature(self, timestamp, nonce, echostr, msg_signature):
-        # 验证签名确保请求来自微信
-        l = [self.token, timestamp, nonce, echostr]
-        l.sort()
-        if hashlib.sha1("".join(l).encode()).hexdigest() == msg_signature:
-            return True
-        return False
-
-    def decrypt(self, text: str):
-        # AES-256-CBC 解密逻辑
-        cryptor = Cipher(algorithms.AES(self.key), modes.CBC(self.key[:16]), backend=default_backend()).decryptor()
-        plain_text = cryptor.update(base64.b64decode(text)) + cryptor.finalize()
-        pad = plain_text[-1]
-        content = plain_text[16:-pad] # 去掉16位随机前缀和末尾填充
-        xml_len = int.from_bytes(content[:4], byteorder='big')
-        return content[4:4+xml_len].decode()
 
 def init_db():
     db = SessionLocal()
@@ -110,15 +79,12 @@ def init_db():
             "ALTER TABLE users ADD COLUMN full_name VARCHAR DEFAULT ''",
             "ALTER TABLE settings ADD COLUMN show_git_commit BOOLEAN DEFAULT 1",
             "ALTER TABLE settings ADD COLUMN wechat_enabled BOOLEAN DEFAULT 0",
-            "ALTER TABLE settings ADD COLUMN wechat_corpid VARCHAR DEFAULT ''",
-            "ALTER TABLE settings ADD COLUMN wechat_agentid VARCHAR DEFAULT ''",
-            "ALTER TABLE settings ADD COLUMN wechat_secret VARCHAR DEFAULT ''",
-            "ALTER TABLE settings ADD COLUMN wechat_token VARCHAR DEFAULT ''",
-            "ALTER TABLE settings ADD COLUMN wechat_aes_key VARCHAR DEFAULT ''",
-            "ALTER TABLE settings ADD COLUMN wechat_proxy_url VARCHAR DEFAULT 'https://qyapi.weixin.qq.com'",
-            "ALTER TABLE settings ADD COLUMN wechat_whitelist VARCHAR DEFAULT ''",
             "ALTER TABLE files ADD COLUMN filesize INTEGER DEFAULT 0",
-            "ALTER TABLE settings ADD COLUMN wechat_template TEXT DEFAULT '{{user}} 在 {{path}} 目录发布了 {{filename}} 文件\n版本：{{version}}\n修改记录：{{changelog}}'"
+            "ALTER TABLE settings ADD COLUMN wechat_template TEXT DEFAULT '{{user}} 在 {{path}} 目录发布了 {{filename}} 文件\n版本：{{version}}\n修改记录：{{changelog}}'",
+            "ALTER TABLE settings ADD COLUMN wechat_webhook_url VARCHAR DEFAULT ''",
+            "ALTER TABLE settings ADD COLUMN wechat_mentioned_list VARCHAR DEFAULT ''",
+            "ALTER TABLE settings ADD COLUMN wechat_mentioned_mobile_list VARCHAR DEFAULT ''",
+            "ALTER TABLE settings ADD COLUMN wechat_mention_all BOOLEAN DEFAULT 0"
         ]
         for cmd in migrations:
             try: db.execute(text(cmd)); db.commit()
@@ -186,6 +152,47 @@ def build_download_name(filename: str, folder_name: str = "", git_commit: str = 
         return f"{folder} -{git}-{filename}" if git else f"{folder} -{filename}"
     return f"{git}-{filename}" if git else filename
 
+def parse_wechat_mention_values(value: str) -> list:
+    if not value:
+        return []
+    mentions = []
+    for raw_item in re.split(r"[\s,，;；]+", value):
+        item = raw_item.strip()
+        if not item:
+            continue
+        if item == "@all":
+            mentions.append(item)
+            continue
+        match = re.fullmatch(r"<@([^>]+)>", item)
+        if match:
+            item = match.group(1).strip()
+        item = item.lstrip("@")
+        if item:
+            mentions.append(item)
+    return list(dict.fromkeys(mentions))
+
+def build_wechat_group_webhook_payload(settings: Settings, content: str) -> dict:
+    mentioned_list = parse_wechat_mention_values(getattr(settings, "wechat_mentioned_list", "") or "")
+    mentioned_mobile_list = parse_wechat_mention_values(getattr(settings, "wechat_mentioned_mobile_list", "") or "")
+    if getattr(settings, "wechat_mention_all", False) and "@all" not in mentioned_list:
+        mentioned_list.append("@all")
+    text = {"content": content}
+    if mentioned_list:
+        text["mentioned_list"] = mentioned_list
+    if mentioned_mobile_list:
+        text["mentioned_mobile_list"] = mentioned_mobile_list
+    return {"msgtype": "text", "text": text}
+
+def get_robot_webhook_url(settings: Settings) -> str:
+    return (getattr(settings, "wechat_webhook_url", "") or "").strip()
+
+def send_wechat_robot_message(client, settings: Settings, content: str):
+    webhook_url = get_robot_webhook_url(settings)
+    if not webhook_url:
+        return {"errcode": 1, "errmsg": "Webhook 未配置"}
+    res = client.post(webhook_url, json=build_wechat_group_webhook_payload(settings, content))
+    return res.json()
+
 # 发送微信消息的核心逻辑
 # 修改后的发送函数
 def send_wechat_notify(content: str):
@@ -196,18 +203,7 @@ def send_wechat_notify(content: str):
         
         # 使用同步 Client
         with httpx.Client() as client:
-            # 1. 获取 Token
-            t_res = client.get(f"{s.wechat_proxy_url}/cgi-bin/gettoken?corpid={s.wechat_corpid}&corpsecret={s.wechat_secret}")
-            tk = t_res.json().get("access_token")
-            if tk:
-                # 2. 发送消息 (强制转换 agentid 为 int)
-                msg = {
-                    "touser": s.wechat_whitelist or "@all",
-                    "msgtype": "text",
-                    "agentid": int(s.wechat_agentid), # 关键修复：转为整数
-                    "text": {"content": content}
-                }
-                client.post(f"{s.wechat_proxy_url}/cgi-bin/message/send?access_token={tk}", json=msg)
+            send_wechat_robot_message(client, s, content)
     except Exception as e:
         logger.error(f"WeChat Notify Failed: {e}")
     finally:
@@ -246,32 +242,17 @@ def get_data(db: Session = Depends(get_db)):
 @app.post("/api/admin/wechat/test")
 async def test_wechat(user: User = Depends(get_user), db: Session = Depends(get_db)):
     s = db.query(Settings).first()
+    webhook_url = get_robot_webhook_url(s)
+    if not webhook_url:
+        return {"errcode": 1, "errmsg": "Webhook 未配置"}
     async with httpx.AsyncClient() as client:
         try:
-            t_res = await client.get(f"{s.wechat_proxy_url}/cgi-bin/gettoken?corpid={s.wechat_corpid}&corpsecret={s.wechat_secret}")
-            tk = t_res.json().get("access_token")
-            if not tk: return {"errcode": 1, "errmsg": "AccessToken 获取失败"}
-            msg = {"touser": s.wechat_whitelist or "@all", "msgtype": "text", "agentid": s.wechat_agentid, "text": {"content": f"配置测试成功！\n操作人: {user.full_name or user.username}"}}
-            res = await client.post(f"{s.wechat_proxy_url}/cgi-bin/message/send?access_token={tk}", json=msg)
+            test_id = uuid.uuid4().hex[:8]
+            test_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            content = f"配置测试成功！\n操作人: {user.full_name or user.username}\n测试时间: {test_time}\n测试编号: {test_id}"
+            res = await client.post(webhook_url, json=build_wechat_group_webhook_payload(s, content))
             return res.json()
         except Exception as e: return {"errcode": -1, "errmsg": str(e)}
-
-@app.get("/api/wechat/receive")
-async def verify_wechat(msg_signature: str = Query(None), timestamp: str = Query(None), nonce: str = Query(None), echostr: str = Query(None), db: Session = Depends(get_db)):
-    if not echostr: return PlainTextResponse(content="no_echostr")
-    s = db.query(Settings).first()
-    try:
-        wxcrypt = WXBizMsgCrypt(s.wechat_token, s.wechat_aes_key, s.wechat_corpid)
-        # 1. 验证签名
-        if not wxcrypt.verify_signature(timestamp, nonce, echostr, msg_signature):
-            return PlainTextResponse(content="signature_mismatch", status_code=403)
-        # 2. 解密 echostr
-        decrypted_str = wxcrypt.decrypt(echostr)
-        # 3. 必须返回纯文本解密串
-        return PlainTextResponse(content=decrypted_str)
-    except Exception as e:
-        logger.error(f"微信验证异常: {e}")
-        return PlainTextResponse(content="verification_error", status_code=400)
 
 # --- 以下逻辑严格保持原始代码不动 ---
 @app.post("/api/admin/folders")

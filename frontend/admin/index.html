@@ -466,15 +466,15 @@
                                 <input type="checkbox" v-model="config.wechat_enabled" class="h-5 w-5 accent-cyan-500">
                                 <span class="font-extrabold text-[var(--ink)]">启用微信通知推送服务</span>
                             </label>
-                            <div class="grid grid-cols-1 gap-5 md:grid-cols-3">
-                                <div><label class="label">CorpID 企业ID</label><input v-model="config.wechat_corpid" class="field"></div>
-                                <div><label class="label">AgentID 应用ID</label><input v-model="config.wechat_agentid" class="field"></div>
-                                <div><label class="label">Secret 应用密钥</label><input v-model="config.wechat_secret" type="password" class="field"></div>
-                                <div><label class="label">Token</label><input v-model="config.wechat_token" class="field"></div>
-                                <div><label class="label">EncodingAESKey</label><input v-model="config.wechat_aes_key" class="field"></div>
-                                <div><label class="label">代理 URL</label><input v-model="config.wechat_proxy_url" class="field"></div>
+                            <div class="mt-5 space-y-5">
+                                <div><label class="label">群机器人 Webhook</label><input v-model="config.wechat_webhook_url" class="field" placeholder="https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=..."></div>
+                                <label class="flex cursor-pointer items-center gap-3 rounded-lg border border-[var(--line)] bg-white/28 p-4 dark:bg-white/5">
+                                    <input type="checkbox" v-model="config.wechat_mention_all" class="h-5 w-5 accent-cyan-500">
+                                    <span class="font-extrabold text-[var(--ink)]">@所有人</span>
+                                </label>
+                                <div><label class="label">成员 UserID，不带 @，多个用逗号或空格分隔</label><textarea v-model="config.wechat_mentioned_list" class="field h-20 resize-none" placeholder="zhangsan,lisi"></textarea></div>
+                                <div><label class="label">@成员手机号，多个用逗号或空格分隔</label><textarea v-model="config.wechat_mentioned_mobile_list" class="field h-20 resize-none" placeholder="13800138000,13900139000"></textarea></div>
                             </div>
-                            <div class="mt-5"><label class="label">推送白名单 UserID，@all 为全员</label><textarea v-model="config.wechat_whitelist" class="field h-24 resize-none"></textarea></div>
                             <div class="mt-5">
                                 <label class="label">通知内容模板</label>
                                 <textarea v-model="config.wechat_template" class="field h-32 resize-none" placeholder="{{user}} 在 {{path}} 发布了 {{filename}}..."></textarea>
