@@ -85,7 +85,7 @@ The backend resolves or creates:
 内核/ZC7015/test
 ```
 
-Empty path segments are ignored. Leading and trailing slashes are allowed. The endpoint rejects path segments that are empty after trimming or that contain unsafe separators.
+Empty path segments are ignored, so leading slashes, trailing slashes, and repeated slashes are allowed. The endpoint rejects `.` and `..` path segments, backslashes, and null bytes.
 
 ## Upload Behavior
 
