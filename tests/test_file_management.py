@@ -97,6 +97,48 @@ class FileManagementTest(unittest.TestCase):
 
         self.assertEqual(response.status_code, 401)
 
+    def test_ci_upload_creates_nested_folder_and_stores_metadata(self):
+        response = self.client.post(
+            "/api/ci/upload",
+            headers={"X-CI-Upload-Token": "ci-test-token"},
+            data={
+                "folder_path": "内核/ZC7015/test",
+                "version": "test-a1b2c3d",
+                "changelog": "Add kernel driver",
+                "git_commit": "a1b2c3d",
+                "submitter": "gitlab-ci",
+            },
+            files={"file": ("uImage", b"kernel-image", "application/octet-stream")},
+        )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        body = response.json()
+        self.assertEqual(body["status"], "success")
+        self.assertEqual(body["file"]["name"], "uImage")
+        self.assertEqual(body["file"]["version"], "test-a1b2c3d")
+        self.assertEqual(body["file"]["changelog"], "Add kernel driver")
+        self.assertEqual(body["file"]["git_commit"], "a1b2c3d")
+        self.assertEqual(body["file"]["submitter"], "gitlab-ci")
+        self.assertEqual(body["file"]["size"], len(b"kernel-image"))
+        self.assertEqual(body["file"]["md5"], "6ec01f90b144039feb3a329039d90570")
+
+        public_data = self.client.get("/api/public/data").json()
+        folders = public_data["folders"]
+        kernel = next(folder for folder in folders if folder["name"] == "内核")
+        board = next(folder for folder in folders if folder["name"] == "ZC7015")
+        branch = next(folder for folder in folders if folder["name"] == "test")
+        self.assertEqual(board["parent_id"], kernel["id"])
+        self.assertEqual(branch["parent_id"], board["id"])
+        self.assertEqual(body["file"]["folder_id"], branch["id"])
+
+        uploaded = next(item for item in public_data["files"] if item["name"] == "uImage")
+        self.assertEqual(uploaded["folder_id"], branch["id"])
+        self.assertEqual(uploaded["version"], "test-a1b2c3d")
+        self.assertEqual(uploaded["changelog"], "Add kernel driver")
+        self.assertEqual(uploaded["git_commit"], "a1b2c3d")
+        self.assertEqual(uploaded["submitter"], "gitlab-ci")
+        self.assertEqual(uploaded["size"], len(b"kernel-image"))
+
     def test_admin_can_rename_folder(self):
         response = self.client.post(
             "/api/admin/folders",

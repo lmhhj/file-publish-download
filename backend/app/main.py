@@ -134,6 +134,36 @@ def get_folder_path(folder_id: int, db: Session) -> str:
         curr_id = f.parent_id
     return "/" + "/".join(path_parts)
 
+def parse_folder_path(folder_path: Optional[str]) -> list:
+    if not folder_path:
+        return []
+    if "\x00" in folder_path or "\\" in folder_path:
+        raise HTTPException(status_code=400, detail="目录路径非法")
+    parts = []
+    for raw_part in folder_path.split("/"):
+        part = raw_part.strip()
+        if not part:
+            continue
+        if part in {".", ".."}:
+            raise HTTPException(status_code=400, detail="目录路径非法")
+        parts.append(part)
+    return parts
+
+def get_or_create_folder_path(folder_path: Optional[str], creator: str, db: Session) -> int:
+    parent_id = 0
+    for name in parse_folder_path(folder_path):
+        folder = db.query(Folder).filter(
+            Folder.name == name,
+            Folder.parent_id == parent_id
+        ).first()
+        if not folder:
+            folder = Folder(name=name, parent_id=parent_id, creator=creator)
+            db.add(folder)
+            db.commit()
+            db.refresh(folder)
+        parent_id = folder.id
+    return parent_id
+
 def version_sort_key(version: Optional[str]):
     nums = [int(n) for n in re.findall(r"\d+", version or "")]
     if not nums:
@@ -214,6 +244,63 @@ def send_wechat_notify(content: str):
     finally:
         db.close()
 
+def render_upload_notify_content(settings: Settings, filename: str, version: str, changelog: str, git_commit: str, folder_id: int, submitter_name: str, db: Session) -> str:
+    path_str = get_folder_path(folder_id, db)
+    tpl = settings.wechat_template or "{{user}} 在 {{path}} 发布了 {{filename}}\n版本：{{version}}\n描述：{{changelog}}"
+    return tpl.replace("{{user}}", submitter_name)\
+              .replace("{{path}}", path_str)\
+              .replace("{{filename}}", filename)\
+              .replace("{{version}}", version or git_commit or "v1.0")\
+              .replace("{{changelog}}", changelog or "无")
+
+async def save_upload_record(
+    background_tasks: BackgroundTasks,
+    file: UploadFile,
+    version: str,
+    changelog: str,
+    git_commit: str,
+    folder_id: int,
+    submitter: str,
+    submitter_name: str,
+    db: Session,
+):
+    content = await file.read()
+    real_filename = f"{int(time.time())}_{file.filename}"
+    save_path = os.path.join(UPLOAD_DIR, real_filename)
+    with open(save_path, "wb") as f:
+        f.write(content)
+
+    new_file = FileRecord(
+        filename=file.filename,
+        filepath=save_path,
+        md5=hashlib.md5(content).hexdigest(),
+        version=version,
+        changelog=changelog,
+        git_commit=git_commit,
+        submitter=submitter,
+        folder_id=folder_id,
+        filesize=len(content),
+    )
+    db.add(new_file)
+    db.commit()
+    db.refresh(new_file)
+
+    settings = db.query(Settings).first()
+    if settings and settings.wechat_enabled:
+        msg_content = render_upload_notify_content(
+            settings,
+            file.filename,
+            version,
+            changelog,
+            git_commit,
+            folder_id,
+            submitter_name,
+            db,
+        )
+        background_tasks.add_task(send_wechat_notify, msg_content)
+
+    return new_file
+
 @app.post("/token")
 async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     user = db.query(User).filter(User.username == form_data.username).first()
@@ -283,38 +370,58 @@ def del_folder(fid: int, user: User = Depends(get_user), db: Session = Depends(g
 
 @app.post("/api/ci/upload")
 async def ci_upload(
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
+    folder_path: str = Form(""),
+    version: str = Form(""),
+    changelog: str = Form(""),
+    git_commit: str = Form(""),
+    submitter: str = Form("gitlab-ci"),
     _: None = Depends(verify_ci_upload_token),
+    db: Session = Depends(get_db),
 ):
-    return {"status": "success"}
+    submitter = (submitter or "gitlab-ci").strip() or "gitlab-ci"
+    folder_id = get_or_create_folder_path(folder_path, submitter, db)
+    new_file = await save_upload_record(
+        background_tasks,
+        file,
+        version,
+        changelog,
+        git_commit,
+        folder_id,
+        submitter,
+        submitter,
+        db,
+    )
+    return {
+        "status": "success",
+        "file": {
+            "id": new_file.id,
+            "name": new_file.filename,
+            "folder_id": new_file.folder_id or 0,
+            "md5": new_file.md5,
+            "version": new_file.version,
+            "changelog": new_file.changelog,
+            "git_commit": new_file.git_commit,
+            "submitter": new_file.submitter,
+            "size": new_file.filesize,
+        },
+    }
 
 @app.post("/api/upload")
 async def upload(background_tasks: BackgroundTasks, file: UploadFile = File(...), version: str = Form(""), changelog: str = Form(""), git_commit: str = Form(""), folder_id: int = Form(0), user: User = Depends(get_user), db: Session = Depends(get_db)):
-    content = await file.read()
-    # 增量修改：防止物理文件覆盖，添加时间戳，数据库仍存原名
-    real_filename = f"{int(time.time())}_{file.filename}"
-    save_path = os.path.join(UPLOAD_DIR, real_filename)
-    
-    with open(save_path, "wb") as f: f.write(content)
-    new_file = FileRecord(filename=file.filename, filepath=save_path, md5=hashlib.md5(content).hexdigest(), version=version, changelog=changelog, git_commit=git_commit, submitter=user.username, folder_id=folder_id, filesize=len(content))
-    db.add(new_file); db.commit()
-    
-    # 微信通知模板替换
-    s = db.query(Settings).first()
-    if s and s.wechat_enabled:
-        path_str = get_folder_path(folder_id, db)
-        # 获取模板，如果为空则使用默认格式
-        tpl = s.wechat_template or "{{user}} 在 {{path}} 发布了 {{filename}}\n版本：{{version}}\n描述：{{changelog}}"
-        msg_content = tpl.replace("{{user}}", user.full_name or user.username)\
-                         .replace("{{path}}", path_str)\
-                         .replace("{{filename}}", file.filename)\
-                         .replace("{{version}}", version or git_commit or "v1.0")\
-                         .replace("{{changelog}}", changelog or "无")
-        
-        # 启动后台任务
-        background_tasks.add_task(send_wechat_notify, msg_content)
-    
-    return {"status": "success"}
+    new_file = await save_upload_record(
+        background_tasks,
+        file,
+        version,
+        changelog,
+        git_commit,
+        folder_id,
+        user.username,
+        user.full_name or user.username,
+        db,
+    )
+    return {"status": "success", "id": new_file.id}
 
 @app.put("/api/admin/files/{fid}")
 def edit_file(fid: int, data: dict, user: User = Depends(get_user), db: Session = Depends(get_db)):
