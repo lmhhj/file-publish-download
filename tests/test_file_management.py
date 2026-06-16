@@ -14,6 +14,7 @@ class FileManagementTest(unittest.TestCase):
         cls.tmp = tempfile.TemporaryDirectory()
         os.environ["DATA_DIR"] = cls.tmp.name
         os.environ["SECRET_KEY"] = "test-secret"
+        os.environ["CI_UPLOAD_TOKEN"] = "ci-test-token"
         root = Path(__file__).resolve().parents[1]
         sys.path.insert(0, str(root))
         cls.main = importlib.import_module("backend.app.main")
@@ -78,6 +79,23 @@ class FileManagementTest(unittest.TestCase):
             self.main.get_robot_webhook_url(settings),
             "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=group",
         )
+
+    def test_ci_upload_rejects_missing_token(self):
+        response = self.client.post(
+            "/api/ci/upload",
+            files={"file": ("uImage", b"kernel-image", "application/octet-stream")},
+        )
+
+        self.assertEqual(response.status_code, 401)
+
+    def test_ci_upload_rejects_invalid_token(self):
+        response = self.client.post(
+            "/api/ci/upload",
+            headers={"X-CI-Upload-Token": "wrong-token"},
+            files={"file": ("uImage", b"kernel-image", "application/octet-stream")},
+        )
+
+        self.assertEqual(response.status_code, 401)
 
     def test_admin_can_rename_folder(self):
         response = self.client.post(

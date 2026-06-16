@@ -1,7 +1,7 @@
 import os, hashlib, logging, httpx, time, re, uuid
 from datetime import datetime
 from typing import Optional
-from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form, BackgroundTasks
+from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form, BackgroundTasks, Header
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, text
@@ -16,6 +16,7 @@ DATA_DIR = os.getenv("DATA_DIR", "./data")
 UPLOAD_DIR = os.path.join(DATA_DIR, "uploads")
 DB_PATH = os.path.join(DATA_DIR, "fs.db")
 SECRET_KEY = os.getenv("SECRET_KEY", "fixed_key_2026_user_update")
+CI_UPLOAD_TOKEN = os.getenv("CI_UPLOAD_TOKEN", "")
 ALGORITHM = "HS256"
 
 os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -114,6 +115,10 @@ def get_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db))
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         return db.query(User).filter(User.username == payload.get("sub")).first()
     except: raise HTTPException(status_code=401)
+
+def verify_ci_upload_token(x_ci_upload_token: Optional[str] = Header(None)):
+    if not CI_UPLOAD_TOKEN or x_ci_upload_token != CI_UPLOAD_TOKEN:
+        raise HTTPException(status_code=401, detail="CI 上传令牌无效")
 
 app = FastAPI()
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
@@ -275,6 +280,13 @@ def rename_folder(fid: int, data: dict, user: User = Depends(get_user), db: Sess
 @app.delete("/api/admin/folders/{fid}")
 def del_folder(fid: int, user: User = Depends(get_user), db: Session = Depends(get_db)):
     db.query(Folder).filter(Folder.id == fid).delete(); db.commit(); return {"status": "success"}
+
+@app.post("/api/ci/upload")
+async def ci_upload(
+    file: UploadFile = File(...),
+    _: None = Depends(verify_ci_upload_token),
+):
+    return {"status": "success"}
 
 @app.post("/api/upload")
 async def upload(background_tasks: BackgroundTasks, file: UploadFile = File(...), version: str = Form(""), changelog: str = Form(""), git_commit: str = Form(""), folder_id: int = Form(0), user: User = Depends(get_user), db: Session = Depends(get_db)):
