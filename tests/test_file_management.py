@@ -139,6 +139,33 @@ class FileManagementTest(unittest.TestCase):
         self.assertEqual(uploaded["submitter"], "gitlab-ci")
         self.assertEqual(uploaded["size"], len(b"kernel-image"))
 
+    def test_ci_upload_rejects_unsafe_folder_path(self):
+        for folder_path in ["内核/../ZC7015", "内核\\ZC7015", "内核/\x00/ZC7015"]:
+            with self.subTest(folder_path=folder_path):
+                response = self.client.post(
+                    "/api/ci/upload",
+                    headers={"X-CI-Upload-Token": "ci-test-token"},
+                    data={"folder_path": folder_path},
+                    files={"file": ("uImage", b"kernel-image", "application/octet-stream")},
+                )
+
+                self.assertEqual(response.status_code, 400)
+
+    def test_ci_upload_ignores_empty_folder_path_segments(self):
+        response = self.client.post(
+            "/api/ci/upload",
+            headers={"X-CI-Upload-Token": "ci-test-token"},
+            data={"folder_path": " /内核//ZC7015/ "},
+            files={"file": ("system-top.dtb", b"device-tree", "application/octet-stream")},
+        )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        public_data = self.client.get("/api/public/data").json()
+        folders = public_data["folders"]
+        kernel = next(folder for folder in folders if folder["name"] == "内核")
+        board = next(folder for folder in folders if folder["name"] == "ZC7015" and folder["parent_id"] == kernel["id"])
+        self.assertEqual(response.json()["file"]["folder_id"], board["id"])
+
     def test_admin_can_rename_folder(self):
         response = self.client.post(
             "/api/admin/folders",
