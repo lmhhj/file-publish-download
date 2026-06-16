@@ -1,0 +1,61 @@
+variables:
+  ARCH_VAL: "arm"
+  CROSS_COMPILE_VAL: "/opt/toolchains/gcc-linaro-6.4.1-arm-gnueabihf/bin/arm-linux-gnueabihf-"
+  LOADADDR_VAL: "0x00008000"
+  FILE_SERVER_URL: "https://files.example.internal"
+  FILE_RELEASE_FOLDER: "内核/ZC7015"
+  FILE_RELEASE_VERSION: "${CI_COMMIT_TAG:-${CI_COMMIT_REF_NAME}-${CI_COMMIT_SHORT_SHA}}"
+
+stages:
+  - build
+
+build_zc7015:
+  stage: build
+  tags:
+    - build-kernel
+  only:
+    - test
+  script:
+    - echo "--- 1. 显式导出环境变量 ---"
+    - export ARCH=$ARCH_VAL
+    - export CROSS_COMPILE=$CROSS_COMPILE_VAL
+    - export LOADADDR=$LOADADDR_VAL
+
+    - echo "--- 2. 检查编译器版本 ---"
+    - ${CROSS_COMPILE}gcc --version
+
+    - echo "--- 3. 环境清理与配置 ---"
+    - make distclean
+    - make som_71_defconfig
+
+    - echo "--- 4. 开始并行编译 (双编译器协同) ---"
+    - make HOSTCFLAGS="-fcommon" -j$(nproc) uImage LOADADDR=0x00008000
+
+    - echo "--- 5. 编译设备树 ---"
+    - make HOSTCFLAGS="-fcommon" system-top.dtb
+
+    - echo "--- 6. 整理产物 ---"
+    - mkdir -p output_release
+    - cp arch/arm/boot/uImage output_release/
+    - cp arch/arm/boot/dts/system-top.dtb output_release/
+
+    - echo "--- 7. 上传产物到文件管理后台 ---"
+    - test -n "$FILE_UPLOAD_TOKEN"
+    - |
+      RELEASE_CHANGELOG="${CI_COMMIT_TITLE:-${CI_COMMIT_MESSAGE}}"
+      for artifact in output_release/uImage output_release/system-top.dtb; do
+        curl -f -X POST "$FILE_SERVER_URL/api/ci/upload" \
+          -H "X-CI-Upload-Token: $FILE_UPLOAD_TOKEN" \
+          -F "file=@${artifact}" \
+          -F "folder_path=${FILE_RELEASE_FOLDER}" \
+          -F "version=${FILE_RELEASE_VERSION}" \
+          -F "changelog=${RELEASE_CHANGELOG}" \
+          -F "git_commit=${CI_COMMIT_SHORT_SHA}" \
+          -F "submitter=gitlab-ci"
+      done
+
+  artifacts:
+    name: "ZC7015_Build_${CI_COMMIT_SHORT_SHA}"
+    paths:
+      - output_release/
+    expire_in: 1 week

@@ -8,6 +8,7 @@ services:
     environment:
       - DATA_DIR=/data
       - SECRET_KEY=changethissecretkey123456
+      - CI_UPLOAD_TOKEN=${CI_UPLOAD_TOKEN:-}
     networks:
       - fs-net
 
