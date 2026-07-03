@@ -589,7 +589,10 @@
                 const canPreview = (f) => ['pdf', 'md', 'markdown'].includes(fileExt(f));
                 const getPreviewType = (f) => fileExt(f) === 'pdf' ? 'pdf' : 'markdown';
                 const previewUrl = (f) => String(f?.url || '').replace(/^\/files\//, '/preview/');
-                const normalizeMarkdown = (text) => String(text || '').replace(/\*\*([^*\n]*?)\s+\*\*/g, '**$1** ');
+                const normalizeMarkdown = (text) => String(text || '')
+                    .replace(/\*\*\s+([^*\n]*?)\s*\*\*/g, '**$1**')
+                    .replace(/\*\*([^*\n]*?)\s+\*\*/g, '**$1**')
+                    .replace(/\*\*([^*\n]*?[：:])\*\*(?=\S)/g, '**$1** ');
                 const sanitizeHtml = (html) => {
                     const template = document.createElement('template');
                     template.innerHTML = html;
