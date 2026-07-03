@@ -589,6 +589,7 @@
                 const canPreview = (f) => ['pdf', 'md', 'markdown'].includes(fileExt(f));
                 const getPreviewType = (f) => fileExt(f) === 'pdf' ? 'pdf' : 'markdown';
                 const previewUrl = (f) => String(f?.url || '').replace(/^\/files\//, '/preview/');
+                const normalizeMarkdown = (text) => String(text || '').replace(/\*\*([^*\n]*?)\s+\*\*/g, '**$1** ');
                 const sanitizeHtml = (html) => {
                     const template = document.createElement('template');
                     template.innerHTML = html;
@@ -601,6 +602,10 @@
                                 node.removeAttribute(attr.name);
                             }
                         });
+                    });
+                    template.content.querySelectorAll('a[href]').forEach(link => {
+                        link.setAttribute('target', '_blank');
+                        link.setAttribute('rel', 'noopener noreferrer');
                     });
                     return template.innerHTML;
                 };
@@ -615,7 +620,8 @@
                         const res = await fetch(`${url}?t=${Date.now()}`);
                         if(!res.ok) throw new Error(`HTTP ${res.status}`);
                         const text = await res.text();
-                        const rawHtml = window.marked ? window.marked.parse(text, { breaks: true, gfm: true }) : text;
+                        const normalizedText = normalizeMarkdown(text);
+                        const rawHtml = window.marked ? window.marked.parse(normalizedText, { breaks: true, gfm: true }) : normalizedText;
                         previewModal.value.html = sanitizeHtml(rawHtml);
                     } catch(e) {
                         previewModal.value.error = '文档加载失败，请下载后查看';
