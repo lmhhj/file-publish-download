@@ -7,6 +7,7 @@
     <link rel="icon" href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.svg" type="image/svg+xml">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
     <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
     <script>tailwind.config = { darkMode: 'class' }</script>
     <style>
@@ -226,6 +227,72 @@
                 rgba(6, 16, 20, .38);
         }
 
+        .markdown-preview {
+            color: var(--ink);
+            font-size: .95rem;
+            line-height: 1.75;
+        }
+
+        .markdown-preview h1,
+        .markdown-preview h2,
+        .markdown-preview h3 {
+            margin: 1.2rem 0 .65rem;
+            font-weight: 800;
+            line-height: 1.25;
+        }
+
+        .markdown-preview h1 { font-size: 1.7rem; }
+        .markdown-preview h2 { font-size: 1.35rem; }
+        .markdown-preview h3 { font-size: 1.12rem; }
+        .markdown-preview p,
+        .markdown-preview ul,
+        .markdown-preview ol,
+        .markdown-preview blockquote,
+        .markdown-preview pre,
+        .markdown-preview table { margin: .8rem 0; }
+        .markdown-preview ul { list-style: disc; padding-left: 1.35rem; }
+        .markdown-preview ol { list-style: decimal; padding-left: 1.35rem; }
+        .markdown-preview a { color: var(--cyan); font-weight: 800; text-decoration: underline; }
+        .markdown-preview code {
+            border: 1px solid var(--line);
+            border-radius: .35rem;
+            background: rgba(255,255,255,.48);
+            padding: .12rem .32rem;
+            font-family: "Fira Code", ui-monospace, monospace;
+            font-size: .88em;
+        }
+        .dark .markdown-preview code { background: rgba(255,255,255,.08); }
+        .markdown-preview pre {
+            overflow-x: auto;
+            border: 1px solid var(--line);
+            border-radius: .5rem;
+            background: rgba(255,255,255,.52);
+            padding: 1rem;
+        }
+        .dark .markdown-preview pre { background: rgba(255,255,255,.07); }
+        .markdown-preview pre code {
+            border: 0;
+            background: transparent;
+            padding: 0;
+        }
+        .markdown-preview blockquote {
+            border-left: 4px solid var(--cyan);
+            padding-left: 1rem;
+            color: var(--muted);
+        }
+        .markdown-preview table {
+            width: 100%;
+            border-collapse: collapse;
+            overflow: hidden;
+            border-radius: .5rem;
+        }
+        .markdown-preview th,
+        .markdown-preview td {
+            border: 1px solid var(--line);
+            padding: .55rem .65rem;
+            text-align: left;
+        }
+
         @media (prefers-reduced-motion: reduce) {
             *, *::before, *::after {
                 animation-duration: .01ms !important;
@@ -299,7 +366,7 @@
                                 <th v-if="config.show_version" class="px-6 py-4">版本 / Git</th>
                                 <th v-if="config.show_date" class="px-6 py-4">日期</th>
                                 <th v-if="config.show_submitter" class="px-6 py-4">发布人</th>
-                                <th class="px-6 py-4 text-right">下载</th>
+                                <th class="px-6 py-4 text-right">操作</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-[var(--line)] bg-white/20 dark:bg-transparent">
@@ -361,10 +428,16 @@
                                     </div>
                                 </td>
                                 <td class="px-6 py-4 text-right">
-                                    <button @click="dl(f)" :disabled="f.downloading" class="glass-btn primary-btn relative h-9 min-w-[88px] overflow-hidden px-4 text-xs disabled:cursor-wait disabled:opacity-80">
-                                        <div v-if="f.downloading" class="absolute inset-y-0 left-0 bg-white/24" :style="{width: f.progress + '%'}"></div>
-                                        <span class="relative z-10">{{ f.downloading ? f.progress + '%' : '下载' }}</span>
-                                    </button>
+                                    <div class="flex justify-end gap-2">
+                                        <button v-if="canPreview(f)" @click="openPreview(f)" class="glass-btn h-9 min-w-[78px] px-3 text-xs">
+                                            <i class="ri-eye-line"></i>
+                                            预览
+                                        </button>
+                                        <button @click="dl(f)" :disabled="f.downloading" class="glass-btn primary-btn relative h-9 min-w-[88px] overflow-hidden px-4 text-xs disabled:cursor-wait disabled:opacity-80">
+                                            <div v-if="f.downloading" class="absolute inset-y-0 left-0 bg-white/24" :style="{width: f.progress + '%'}"></div>
+                                            <span class="relative z-10">{{ f.downloading ? f.progress + '%' : '下载' }}</span>
+                                        </button>
+                                    </div>
                                 </td>
                             </tr>
                         </tbody>
@@ -399,10 +472,44 @@
                                 <div class="text-xs font-bold text-[var(--muted)]">{{h.date}} <span class="opacity-70">发布人 {{h.publisher}}</span></div>
                                 <div class="mt-1 max-w-[300px] truncate text-xs font-semibold text-[var(--muted)]">{{h.changelog}}</div>
                             </div>
-                            <button @click="dl(h)" :disabled="h.downloading" class="glass-btn relative h-9 w-24 overflow-hidden px-3 text-xs disabled:cursor-wait">
-                                <div v-if="h.downloading" class="absolute inset-y-0 left-0 bg-cyan-400/18" :style="{width: h.progress + '%'}"></div>
-                                <span class="relative z-10">{{ h.downloading ? h.progress + '%' : '下载' }}</span>
+                            <div class="flex shrink-0 gap-2">
+                                <button v-if="canPreview(h)" @click="openPreview(h)" class="glass-btn h-9 w-20 px-3 text-xs">
+                                    预览
+                                </button>
+                                <button @click="dl(h)" :disabled="h.downloading" class="glass-btn relative h-9 w-24 overflow-hidden px-3 text-xs disabled:cursor-wait">
+                                    <div v-if="h.downloading" class="absolute inset-y-0 left-0 bg-cyan-400/18" :style="{width: h.progress + '%'}"></div>
+                                    <span class="relative z-10">{{ h.downloading ? h.progress + '%' : '下载' }}</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div v-if="previewModal.show" class="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5">
+                <div class="glass-popover flex h-[88vh] w-full max-w-6xl flex-col rounded-lg p-4 sm:p-5">
+                    <div class="mb-4 flex items-start justify-between gap-4">
+                        <div class="min-w-0">
+                            <div class="text-[11px] font-extrabold uppercase text-[var(--muted)]">{{ previewModal.type === 'pdf' ? 'PDF 预览' : 'Markdown 预览' }}</div>
+                            <h3 class="mt-1 break-all text-lg font-extrabold text-[var(--ink)]">{{ previewModal.file?.name }}</h3>
+                        </div>
+                        <div class="flex shrink-0 gap-2">
+                            <button v-if="previewModal.file" @click="dl(previewModal.file)" class="glass-btn primary-btn h-10 px-4 text-xs">
+                                <i class="ri-download-2-line"></i>
+                                下载
                             </button>
+                            <button @click="closePreview" aria-label="关闭预览" class="glass-btn h-10 w-10">
+                                <i class="ri-close-line text-lg"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="min-h-0 flex-1 overflow-hidden rounded-lg border border-[var(--line)] bg-white/36 dark:bg-white/5">
+                        <iframe v-if="previewModal.type === 'pdf'" :src="previewModal.url" title="PDF 预览" class="h-full w-full bg-white"></iframe>
+                        <div v-else class="h-full overflow-y-auto p-5 sm:p-7">
+                            <div v-if="previewModal.loading" class="flex h-full items-center justify-center text-sm font-extrabold text-[var(--muted)]">正在加载文档...</div>
+                            <div v-else-if="previewModal.error" class="flex h-full items-center justify-center text-center text-sm font-extrabold text-[var(--muted)]">{{ previewModal.error }}</div>
+                            <article v-else class="markdown-preview mx-auto max-w-4xl" v-html="previewModal.html"></article>
                         </div>
                     </div>
                 </div>
@@ -417,6 +524,7 @@
                 const config = ref({}); const allFiles = ref([]); const allFolders = ref([]);
                 const loading = ref(true); const search = ref(""); const currentFolderId = ref(0);
                 const historyModal = ref({ show: false, list: [], title: '' });
+                const previewModal = ref({ show: false, file: null, type: '', url: '', html: '', loading: false, error: '' });
                 const versionParts = (version) => {
                     const nums = String(version || '').match(/\d+/g);
                     const parts = nums ? nums.map(n => Number(n)).slice(0, 6) : [-1, -1, -1, -1, -1, -1];
@@ -473,6 +581,48 @@
 
                 const navTo = (id) => { currentFolderId.value = id; search.value = ""; };
                 const goUp = () => { const curr = allFolders.value.find(f => f.id === currentFolderId.value); if(curr) currentFolderId.value = curr.parent_id || 0; };
+                const fileExt = (f) => {
+                    const name = String(f?.name || '').toLowerCase();
+                    const match = name.match(/\.([^.]+)$/);
+                    return match ? match[1] : '';
+                };
+                const canPreview = (f) => ['pdf', 'md', 'markdown'].includes(fileExt(f));
+                const getPreviewType = (f) => fileExt(f) === 'pdf' ? 'pdf' : 'markdown';
+                const previewUrl = (f) => String(f?.url || '').replace(/^\/files\//, '/preview/');
+                const sanitizeHtml = (html) => {
+                    const template = document.createElement('template');
+                    template.innerHTML = html;
+                    template.content.querySelectorAll('script, iframe, object, embed, link, style, meta').forEach(node => node.remove());
+                    template.content.querySelectorAll('*').forEach(node => {
+                        [...node.attributes].forEach(attr => {
+                            const name = attr.name.toLowerCase();
+                            const value = attr.value.trim().toLowerCase();
+                            if(name.startsWith('on') || value.startsWith('javascript:') || value.startsWith('data:text/html')) {
+                                node.removeAttribute(attr.name);
+                            }
+                        });
+                    });
+                    return template.innerHTML;
+                };
+                const closePreview = () => { previewModal.value = { show: false, file: null, type: '', url: '', html: '', loading: false, error: '' }; };
+                const openPreview = async (f) => {
+                    if(!canPreview(f)) return;
+                    const type = getPreviewType(f);
+                    const url = previewUrl(f);
+                    previewModal.value = { show: true, file: f, type, url, html: '', loading: type !== 'pdf', error: '' };
+                    if(type === 'pdf') return;
+                    try {
+                        const res = await fetch(`${url}?t=${Date.now()}`);
+                        if(!res.ok) throw new Error(`HTTP ${res.status}`);
+                        const text = await res.text();
+                        const rawHtml = window.marked ? window.marked.parse(text, { breaks: true, gfm: true }) : text;
+                        previewModal.value.html = sanitizeHtml(rawHtml);
+                    } catch(e) {
+                        previewModal.value.error = '文档加载失败，请下载后查看';
+                    } finally {
+                        previewModal.value.loading = false;
+                    }
+                };
                 const dl = (f) => {
                     if(f.downloading) return;
                     f.downloading = true; f.progress = 0;
@@ -506,7 +656,7 @@
                 };
 
                 onMounted(() => { if(isDark.value) document.documentElement.classList.add('dark'); loadData(); });
-                return { isDark, toggleDark: () => { isDark.value = !isDark.value; document.documentElement.classList.toggle('dark'); localStorage.setItem('theme', isDark.value?'dark':'light'); }, config, loading, search, displayFiles, displayFolders, breadcrumbs, navTo, goUp, dl, getFileIcon, getIconBg, currentFolderId, getPath, formatSize, historyModal, openHistory };
+                return { isDark, toggleDark: () => { isDark.value = !isDark.value; document.documentElement.classList.toggle('dark'); localStorage.setItem('theme', isDark.value?'dark':'light'); }, config, loading, search, displayFiles, displayFolders, breadcrumbs, navTo, goUp, dl, getFileIcon, getIconBg, currentFolderId, getPath, formatSize, historyModal, openHistory, previewModal, canPreview, openPreview, closePreview };
             }
         }).mount('#app');
     </script>
