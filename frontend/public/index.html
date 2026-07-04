@@ -490,7 +490,7 @@
                 <div class="glass-popover flex h-[88vh] w-full max-w-6xl flex-col rounded-lg p-4 sm:p-5">
                     <div class="mb-4 flex items-start justify-between gap-4">
                         <div class="min-w-0">
-                            <div class="text-[11px] font-extrabold uppercase text-[var(--muted)]">{{ previewModal.type === 'pdf' ? 'PDF 预览' : 'Markdown 预览' }}</div>
+                            <div class="text-[11px] font-extrabold uppercase text-[var(--muted)]">{{ previewModal.type === 'markdown' ? 'Markdown 预览' : (previewModal.type === 'office' ? 'Office 预览' : 'PDF 预览') }}</div>
                             <h3 class="mt-1 break-all text-lg font-extrabold text-[var(--ink)]">{{ previewModal.file?.name }}</h3>
                         </div>
                         <div class="flex shrink-0 gap-2">
@@ -505,7 +505,7 @@
                     </div>
 
                     <div class="min-h-0 flex-1 overflow-hidden rounded-lg border border-[var(--line)] bg-white/36 dark:bg-white/5">
-                        <iframe v-if="previewModal.type === 'pdf'" :src="previewModal.url" title="PDF 预览" class="h-full w-full bg-white"></iframe>
+                        <iframe v-if="previewModal.type === 'pdf' || previewModal.type === 'office'" :src="previewModal.url" title="文档预览" class="h-full w-full bg-white"></iframe>
                         <div v-else class="h-full overflow-y-auto p-5 sm:p-7">
                             <div v-if="previewModal.loading" class="flex h-full items-center justify-center text-sm font-extrabold text-[var(--muted)]">正在加载文档...</div>
                             <div v-else-if="previewModal.error" class="flex h-full items-center justify-center text-center text-sm font-extrabold text-[var(--muted)]">{{ previewModal.error }}</div>
@@ -586,9 +586,18 @@
                     const match = name.match(/\.([^.]+)$/);
                     return match ? match[1] : '';
                 };
-                const canPreview = (f) => ['pdf', 'md', 'markdown'].includes(fileExt(f));
-                const getPreviewType = (f) => fileExt(f) === 'pdf' ? 'pdf' : 'markdown';
-                const previewUrl = (f) => String(f?.url || '').replace(/^\/files\//, '/preview/');
+                const officePreviewExts = ['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'];
+                const canPreview = (f) => ['pdf', 'md', 'markdown', ...officePreviewExts].includes(fileExt(f));
+                const getPreviewType = (f) => {
+                    const ext = fileExt(f);
+                    if(ext === 'pdf') return 'pdf';
+                    if(officePreviewExts.includes(ext)) return 'office';
+                    return 'markdown';
+                };
+                const previewUrl = (f) => {
+                    if(getPreviewType(f) === 'office') return `/api/preview/office/${f.id}?v=${encodeURIComponent(f.md5 || f.version || Date.now())}`;
+                    return String(f?.url || '').replace(/^\/files\//, '/preview/');
+                };
                 const normalizeMarkdown = (text) => String(text || '')
                     .replace(/\*\*\s+([^*\n]*?)\s*\*\*/g, '**$1**')
                     .replace(/\*\*([^*\n]*?)\s+\*\*/g, '**$1**')
@@ -617,10 +626,11 @@
                     if(!canPreview(f)) return;
                     const type = getPreviewType(f);
                     const url = previewUrl(f);
-                    previewModal.value = { show: true, file: f, type, url, html: '', loading: type !== 'pdf', error: '' };
-                    if(type === 'pdf') return;
+                    previewModal.value = { show: true, file: f, type, url, html: '', loading: type === 'markdown', error: '' };
+                    if(type !== 'markdown') return;
                     try {
-                        const res = await fetch(`${url}?t=${Date.now()}`);
+                        const sep = url.includes('?') ? '&' : '?';
+                        const res = await fetch(`${url}${sep}t=${Date.now()}`);
                         if(!res.ok) throw new Error(`HTTP ${res.status}`);
                         const text = await res.text();
                         const normalizedText = normalizeMarkdown(text);
@@ -652,6 +662,9 @@
                 const getFileIcon = (n) => {
                     const name = n.toLowerCase();
                     if(name.endsWith('.pdf')) return 'ri-file-pdf-line';
+                    if(name.endsWith('.doc') || name.endsWith('.docx')) return 'ri-file-word-line';
+                    if(name.endsWith('.xls') || name.endsWith('.xlsx')) return 'ri-file-excel-line';
+                    if(name.endsWith('.ppt') || name.endsWith('.pptx')) return 'ri-file-ppt-line';
                     if(name.endsWith('.zip') || name.endsWith('.rar') || name.endsWith('.7z')) return 'ri-file-zip-line';
                     if(name.endsWith('.bin') || name.endsWith('.img') || name.endsWith('.hex')) return 'ri-cpu-line';
                     return 'ri-file-3-line';
@@ -659,6 +672,9 @@
                 const getIconBg = (n) => {
                     const name = n.toLowerCase();
                     if(name.endsWith('.pdf')) return 'border-rose-300/40 bg-rose-200/24 text-rose-500 dark:bg-rose-400/10';
+                    if(name.endsWith('.doc') || name.endsWith('.docx')) return 'border-blue-300/40 bg-blue-200/24 text-blue-600 dark:bg-blue-400/10';
+                    if(name.endsWith('.xls') || name.endsWith('.xlsx')) return 'border-green-300/40 bg-green-200/24 text-green-600 dark:bg-green-400/10';
+                    if(name.endsWith('.ppt') || name.endsWith('.pptx')) return 'border-amber-300/40 bg-amber-200/24 text-amber-600 dark:bg-amber-400/10';
                     if(name.endsWith('.zip') || name.endsWith('.rar') || name.endsWith('.7z')) return 'border-orange-300/40 bg-orange-200/24 text-orange-500 dark:bg-orange-400/10';
                     if(name.endsWith('.bin') || name.endsWith('.img') || name.endsWith('.hex')) return 'border-emerald-300/40 bg-emerald-200/24 text-emerald-500 dark:bg-emerald-400/10';
                     return 'border-cyan-300/40 bg-cyan-200/24 text-cyan-600 dark:bg-cyan-400/10';

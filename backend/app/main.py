@@ -1,12 +1,14 @@
-import os, hashlib, logging, httpx, time, re, uuid
+import os, hashlib, logging, httpx, time, re, uuid, shutil, subprocess, json
 from datetime import datetime
+from pathlib import Path
 from typing import Optional
+from urllib.parse import quote
 from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form, BackgroundTasks, Header
+from fastapi.responses import FileResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, text
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.orm import declarative_base, sessionmaker, Session
 from passlib.context import CryptContext
 from jose import jwt
 
@@ -14,12 +16,18 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 DATA_DIR = os.getenv("DATA_DIR", "./data")
 UPLOAD_DIR = os.path.join(DATA_DIR, "uploads")
+PREVIEW_DIR = os.path.join(DATA_DIR, "previews")
 DB_PATH = os.path.join(DATA_DIR, "fs.db")
 SECRET_KEY = os.getenv("SECRET_KEY", "fixed_key_2026_user_update")
 CI_UPLOAD_TOKEN = os.getenv("CI_UPLOAD_TOKEN", "")
 ALGORITHM = "HS256"
+OFFICE_PREVIEW_EXTENSIONS = {".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx"}
+SPREADSHEET_PREVIEW_EXTENSIONS = {".xls", ".xlsx"}
+OFFICE_PREVIEW_CACHE_VERSION = "v2"
+OFFICE_CONVERSION_TIMEOUT = int(os.getenv("OFFICE_CONVERSION_TIMEOUT", "120"))
 
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+os.makedirs(PREVIEW_DIR, exist_ok=True)
 Base = declarative_base()
 engine = create_engine(f"sqlite:///{DB_PATH}", connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -113,8 +121,16 @@ def get_db():
 def get_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        return db.query(User).filter(User.username == payload.get("sub")).first()
+        user = db.query(User).filter(User.username == payload.get("sub")).first()
+        if not user:
+            raise HTTPException(status_code=401)
+        return user
     except: raise HTTPException(status_code=401)
+
+def require_admin(user: User):
+    if user.role != "admin":
+        raise HTTPException(status_code=403, detail="需要管理员权限")
+    return user
 
 def verify_ci_upload_token(x_ci_upload_token: Optional[str] = Header(None)):
     if not CI_UPLOAD_TOKEN or x_ci_upload_token != CI_UPLOAD_TOKEN:
@@ -141,12 +157,11 @@ def parse_folder_path(folder_path: Optional[str]) -> list:
         raise HTTPException(status_code=400, detail="目录路径非法")
     parts = []
     for raw_part in folder_path.split("/"):
-        part = raw_part.strip()
-        if not part:
-            continue
-        if part in {".", ".."}:
-            raise HTTPException(status_code=400, detail="目录路径非法")
-        parts.append(part)
+        try:
+            parts.append(validate_resource_name(raw_part, "目录名称"))
+        except HTTPException:
+            if raw_part.strip():
+                raise
     return parts
 
 def get_or_create_folder_path(folder_path: Optional[str], creator: str, db: Session) -> int:
@@ -186,6 +201,128 @@ def build_download_name(filename: str, folder_name: str = "", git_commit: str = 
     if folder and folder != "根目录":
         return f"{folder} -{git}-{filename}" if git else f"{folder} -{filename}"
     return f"{git}-{filename}" if git else filename
+
+def build_file_url(filepath: str) -> str:
+    return f"/files/{quote(os.path.basename(filepath or ''), safe='')}"
+
+def validate_resource_name(name: str, label: str = "名称") -> str:
+    clean_name = (name or "").strip()
+    if (
+        not clean_name
+        or clean_name in {".", ".."}
+        or "\x00" in clean_name
+        or "/" in clean_name
+        or "\\" in clean_name
+    ):
+        raise HTTPException(status_code=400, detail=f"{label}非法")
+    return clean_name
+
+def sanitize_upload_filename(filename: str) -> str:
+    normalized = (filename or "").replace("\\", "/").replace("\x00", "")
+    basename = os.path.basename(normalized).strip()
+    if not basename or basename in {".", ".."}:
+        return f"upload-{uuid.uuid4().hex}"
+    return basename
+
+def is_office_preview_file(filename: str) -> bool:
+    return os.path.splitext(filename or "")[1].lower() in OFFICE_PREVIEW_EXTENSIONS
+
+def is_spreadsheet_preview_file(filename: str) -> bool:
+    return os.path.splitext(filename or "")[1].lower() in SPREADSHEET_PREVIEW_EXTENSIONS
+
+def get_office_preview_cache_key(file_record: FileRecord) -> str:
+    return re.sub(r"[^A-Za-z0-9_.-]", "_", file_record.md5 or str(file_record.id or "source"))
+
+def get_office_preview_pdf_path(file_record: FileRecord) -> str:
+    cache_key = get_office_preview_cache_key(file_record)
+    return os.path.join(PREVIEW_DIR, f"{file_record.id}_{OFFICE_PREVIEW_CACHE_VERSION}_{cache_key}.pdf")
+
+def remove_office_preview_cache(file_record: FileRecord):
+    if not os.path.isdir(PREVIEW_DIR):
+        return
+    cache_key = get_office_preview_cache_key(file_record)
+    prefix = f"{file_record.id}_"
+    suffix = f"_{cache_key}.pdf"
+    for name in os.listdir(PREVIEW_DIR):
+        if name.startswith(prefix) and name.endswith(suffix):
+            pdf_path = os.path.join(PREVIEW_DIR, name)
+            if os.path.isfile(pdf_path):
+                os.remove(pdf_path)
+
+def get_file_for_write(fid: int, user: User, db: Session) -> FileRecord:
+    file_record = db.query(FileRecord).filter(FileRecord.id == fid).first()
+    if not file_record:
+        raise HTTPException(status_code=404, detail="文件不存在")
+    if user.role != "admin" and file_record.submitter != user.username:
+        raise HTTPException(status_code=403, detail="无权操作该文件")
+    return file_record
+
+def office_preview_cache_is_fresh(source_path: str, pdf_path: str) -> bool:
+    return os.path.exists(pdf_path) and os.path.getsize(pdf_path) > 0 and os.path.getmtime(pdf_path) >= os.path.getmtime(source_path)
+
+def find_office_converter() -> str:
+    converter = shutil.which("soffice") or shutil.which("libreoffice")
+    if not converter:
+        raise HTTPException(status_code=503, detail="Office 预览转换器未安装")
+    return converter
+
+def get_office_pdf_export_filter(source_path: str) -> str:
+    if is_spreadsheet_preview_file(source_path):
+        options = {
+            "SinglePageSheets": {
+                "type": "boolean",
+                "value": "true",
+            }
+        }
+        return f"pdf:calc_pdf_Export:{json.dumps(options, separators=(',', ':'))}"
+    return "pdf"
+
+def convert_office_to_pdf(source_path: str, pdf_path: str):
+    converter = find_office_converter()
+    export_filter = get_office_pdf_export_filter(source_path)
+    tmp_dir = os.path.join(PREVIEW_DIR, f"office-{uuid.uuid4().hex}")
+    profile_dir = os.path.join(tmp_dir, "profile")
+    profile_uri = Path(profile_dir).resolve().as_uri()
+    os.makedirs(tmp_dir, exist_ok=True)
+    try:
+        result = subprocess.run(
+            [
+                converter,
+                "--headless",
+                "--nologo",
+                "--nofirststartwizard",
+                f"-env:UserInstallation={profile_uri}",
+                "--convert-to",
+                export_filter,
+                "--outdir",
+                tmp_dir,
+                source_path,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=OFFICE_CONVERSION_TIMEOUT,
+        )
+        if result.returncode != 0:
+            logger.error("Office preview conversion failed: %s %s", result.stdout, result.stderr)
+            raise HTTPException(status_code=500, detail="Office 文档转换失败")
+
+        stem = os.path.splitext(os.path.basename(source_path))[0]
+        produced_pdf = os.path.join(tmp_dir, f"{stem}.pdf")
+        if not os.path.exists(produced_pdf):
+            candidates = [name for name in os.listdir(tmp_dir) if name.lower().endswith(".pdf")]
+            if candidates:
+                produced_pdf = os.path.join(tmp_dir, candidates[0])
+        if not os.path.exists(produced_pdf):
+            logger.error("Office preview conversion produced no PDF: %s %s", result.stdout, result.stderr)
+            raise HTTPException(status_code=500, detail="Office 文档转换失败")
+
+        os.makedirs(os.path.dirname(pdf_path), exist_ok=True)
+        os.replace(produced_pdf, pdf_path)
+    except subprocess.TimeoutExpired:
+        logger.error("Office preview conversion timed out: %s", source_path)
+        raise HTTPException(status_code=500, detail="Office 文档转换超时")
+    finally:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
 
 def parse_wechat_mention_values(value: str) -> list:
     if not value:
@@ -265,13 +402,14 @@ async def save_upload_record(
     db: Session,
 ):
     content = await file.read()
-    real_filename = f"{int(time.time())}_{file.filename}"
+    safe_filename = sanitize_upload_filename(file.filename)
+    real_filename = f"{int(time.time())}_{uuid.uuid4().hex}_{safe_filename}"
     save_path = os.path.join(UPLOAD_DIR, real_filename)
     with open(save_path, "wb") as f:
         f.write(content)
 
     new_file = FileRecord(
-        filename=file.filename,
+        filename=safe_filename,
         filepath=save_path,
         md5=hashlib.md5(content).hexdigest(),
         version=version,
@@ -289,7 +427,7 @@ async def save_upload_record(
     if settings and settings.wechat_enabled:
         msg_content = render_upload_notify_content(
             settings,
-            file.filename,
+            safe_filename,
             version,
             changelog,
             git_commit,
@@ -314,10 +452,9 @@ def get_data(db: Session = Depends(get_db)):
     folders_db = db.query(Folder).all()
     folder_names = {f.id: f.name for f in folders_db}
     files_db = sorted(db.query(FileRecord).all(), key=file_record_sort_key, reverse=True)
-    # 关键修复：URL 使用 filepath 的真实文件名，确保 nginx 能找到物理文件
     files = [{
         "id": f.id, "name": f.filename, 
-        "url": f"/files/{os.path.basename(f.filepath)}",  # <-- 这里修改了：使用物理文件名作为下载路径
+        "url": build_file_url(f.filepath),
         "download_name": build_download_name(f.filename, folder_names.get(f.folder_id or 0, ""), f.git_commit),
         "folder_name": folder_names.get(f.folder_id or 0, ""),
         "md5": f.md5, "version": f.version, "changelog": f.changelog,
@@ -330,9 +467,33 @@ def get_data(db: Session = Depends(get_db)):
     folders = [{"id": f.id, "name": f.name, "parent_id": f.parent_id or 0} for f in folders_db]
     return {"files": files, "folders": folders, "config": db.query(Settings).first()}
 
+@app.get("/api/preview/office/{file_id}")
+def preview_office_file(file_id: int, db: Session = Depends(get_db)):
+    file_record = db.query(FileRecord).filter(FileRecord.id == file_id).first()
+    if not file_record:
+        raise HTTPException(status_code=404, detail="文件不存在")
+    if not is_office_preview_file(file_record.filename):
+        raise HTTPException(status_code=400, detail="该文件类型不支持 Office 预览")
+    if not file_record.filepath or not os.path.exists(file_record.filepath):
+        raise HTTPException(status_code=404, detail="源文件不存在")
+
+    pdf_path = get_office_preview_pdf_path(file_record)
+    if not office_preview_cache_is_fresh(file_record.filepath, pdf_path):
+        convert_office_to_pdf(file_record.filepath, pdf_path)
+
+    preview_name = f"{os.path.splitext(os.path.basename(file_record.filename))[0]}.pdf"
+    return FileResponse(
+        pdf_path,
+        headers={"Cache-Control": "no-cache"},
+        media_type="application/pdf",
+        filename=preview_name,
+        content_disposition_type="inline",
+    )
+
 # --- 增量接口：微信通知测试 ---
 @app.post("/api/admin/wechat/test")
 async def test_wechat(user: User = Depends(get_user), db: Session = Depends(get_db)):
+    require_admin(user)
     s = db.query(Settings).first()
     webhook_url = get_robot_webhook_url(s)
     if not webhook_url:
@@ -349,14 +510,18 @@ async def test_wechat(user: User = Depends(get_user), db: Session = Depends(get_
 # --- 以下逻辑严格保持原始代码不动 ---
 @app.post("/api/admin/folders")
 def create_folder(data: dict, user: User = Depends(get_user), db: Session = Depends(get_db)):
-    db.add(Folder(name=data['name'], parent_id=data.get('parent_id', 0), creator=user.username))
+    require_admin(user)
+    name = validate_resource_name(data.get("name"), "目录名称")
+    parent_id = int(data.get("parent_id") or 0)
+    if parent_id != 0 and not db.query(Folder).filter(Folder.id == parent_id).first():
+        raise HTTPException(status_code=404, detail="父目录不存在")
+    db.add(Folder(name=name, parent_id=parent_id, creator=user.username))
     db.commit(); return {"status": "success"}
 
 @app.put("/api/admin/folders/{fid}")
 def rename_folder(fid: int, data: dict, user: User = Depends(get_user), db: Session = Depends(get_db)):
-    name = (data.get("name") or "").strip()
-    if not name:
-        raise HTTPException(status_code=400, detail="目录名称不能为空")
+    require_admin(user)
+    name = validate_resource_name(data.get("name"), "目录名称")
     folder = db.query(Folder).filter(Folder.id == fid).first()
     if not folder:
         raise HTTPException(status_code=404, detail="目录不存在")
@@ -366,7 +531,15 @@ def rename_folder(fid: int, data: dict, user: User = Depends(get_user), db: Sess
 
 @app.delete("/api/admin/folders/{fid}")
 def del_folder(fid: int, user: User = Depends(get_user), db: Session = Depends(get_db)):
-    db.query(Folder).filter(Folder.id == fid).delete(); db.commit(); return {"status": "success"}
+    require_admin(user)
+    folder = db.query(Folder).filter(Folder.id == fid).first()
+    if not folder:
+        raise HTTPException(status_code=404, detail="目录不存在")
+    if db.query(Folder).filter(Folder.parent_id == fid).first():
+        raise HTTPException(status_code=400, detail="目录下仍有子目录")
+    if db.query(FileRecord).filter(FileRecord.folder_id == fid).first():
+        raise HTTPException(status_code=400, detail="目录下仍有文件")
+    db.delete(folder); db.commit(); return {"status": "success"}
 
 @app.post("/api/ci/upload")
 async def ci_upload(
@@ -425,30 +598,33 @@ async def upload(background_tasks: BackgroundTasks, file: UploadFile = File(...)
 
 @app.put("/api/admin/files/{fid}")
 def edit_file(fid: int, data: dict, user: User = Depends(get_user), db: Session = Depends(get_db)):
-    f = db.query(FileRecord).filter(FileRecord.id == fid).first()
-    if f:
-        for k in ['version', 'changelog', 'git_commit', 'folder_id']:
-            if k in data: setattr(f, k, data[k])
-        db.commit()
+    f = get_file_for_write(fid, user, db)
+    if "folder_id" in data:
+        folder_id = int(data.get("folder_id") or 0)
+        if folder_id != 0 and not db.query(Folder).filter(Folder.id == folder_id).first():
+            raise HTTPException(status_code=404, detail="目标目录不存在")
+        f.folder_id = folder_id
+    for k in ['version', 'changelog', 'git_commit']:
+        if k in data: setattr(f, k, data[k])
+    db.commit()
     return {"status": "success"}
 
 @app.put("/api/admin/files/{fid}/group")
 def edit_file_group(fid: int, data: dict, user: User = Depends(get_user), db: Session = Depends(get_db)):
-    source = db.query(FileRecord).filter(FileRecord.id == fid).first()
-    if not source:
-        raise HTTPException(status_code=404, detail="文件不存在")
+    source = get_file_for_write(fid, user, db)
 
     old_filename = source.filename
     old_folder_id = source.folder_id or 0
-    records = db.query(FileRecord).filter(
+    query = db.query(FileRecord).filter(
         FileRecord.filename == old_filename,
         FileRecord.folder_id == old_folder_id
-    ).all()
+    )
+    if user.role != "admin":
+        query = query.filter(FileRecord.submitter == user.username)
+    records = query.all()
 
     if "filename" in data:
-        filename = (data.get("filename") or "").strip()
-        if not filename:
-            raise HTTPException(status_code=400, detail="文件名不能为空")
+        filename = validate_resource_name(data.get("filename"), "文件名")
         for item in records:
             item.filename = filename
 
@@ -464,26 +640,33 @@ def edit_file_group(fid: int, data: dict, user: User = Depends(get_user), db: Se
 
 @app.delete("/api/admin/files/{fid}")
 def del_file(fid: int, user: User = Depends(get_user), db: Session = Depends(get_db)):
-    f = db.query(FileRecord).filter(FileRecord.id == fid).first()
-    if f:
-        if os.path.exists(f.filepath): os.remove(f.filepath)
-        db.delete(f); db.commit()
+    f = get_file_for_write(fid, user, db)
+    if f.filepath and os.path.exists(f.filepath): os.remove(f.filepath)
+    remove_office_preview_cache(f)
+    db.delete(f); db.commit()
     return {"status": "success"}
 
 @app.get("/api/admin/users")
 def list_users(user: User = Depends(get_user), db: Session = Depends(get_db)):
+    require_admin(user)
     return db.query(User).all()
 
 @app.post("/api/admin/users")
 def add_user(data: dict, user: User = Depends(get_user), db: Session = Depends(get_db)):
-    db.add(User(username=data['username'], full_name=data.get('full_name',''), hashed_password=pwd_context.hash(data['password'])))
+    require_admin(user)
+    username = validate_resource_name(data.get("username"), "账号")
+    password = data.get("password") or ""
+    if not password:
+        raise HTTPException(status_code=400, detail="密码不能为空")
+    db.add(User(username=username, full_name=data.get('full_name',''), hashed_password=pwd_context.hash(password)))
     db.commit(); return {"status": "success"}
 
 @app.put("/api/admin/users/{uid}")
 def update_user(uid: int, data: dict, user: User = Depends(get_user), db: Session = Depends(get_db)):
+    require_admin(user)
     target = db.query(User).filter(User.id == uid).first()
     if target:
-        if 'username' in data: target.username = data['username']
+        if 'username' in data: target.username = validate_resource_name(data['username'], "账号")
         if 'full_name' in data: target.full_name = data['full_name']
         if 'password' in data and data['password']: target.hashed_password = pwd_context.hash(data['password'])
         db.commit()
@@ -491,10 +674,12 @@ def update_user(uid: int, data: dict, user: User = Depends(get_user), db: Sessio
 
 @app.delete("/api/admin/users/{uid}")
 def del_user(uid: int, user: User = Depends(get_user), db: Session = Depends(get_db)):
+    require_admin(user)
     db.query(User).filter(User.id == uid).delete(); db.commit(); return {"status": "success"}
 
 @app.post("/api/admin/settings")
 def set_cfg(data: dict, user: User = Depends(get_user), db: Session = Depends(get_db)):
+    require_admin(user)
     s = db.query(Settings).first()
     for k, v in data.items(): setattr(s, k, v)
     db.commit(); return {"status": "success"}
