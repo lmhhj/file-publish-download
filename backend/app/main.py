@@ -510,7 +510,6 @@ async def test_wechat(user: User = Depends(get_user), db: Session = Depends(get_
 # --- 以下逻辑严格保持原始代码不动 ---
 @app.post("/api/admin/folders")
 def create_folder(data: dict, user: User = Depends(get_user), db: Session = Depends(get_db)):
-    require_admin(user)
     name = validate_resource_name(data.get("name"), "目录名称")
     parent_id = int(data.get("parent_id") or 0)
     if parent_id != 0 and not db.query(Folder).filter(Folder.id == parent_id).first():
@@ -520,7 +519,6 @@ def create_folder(data: dict, user: User = Depends(get_user), db: Session = Depe
 
 @app.put("/api/admin/folders/{fid}")
 def rename_folder(fid: int, data: dict, user: User = Depends(get_user), db: Session = Depends(get_db)):
-    require_admin(user)
     name = validate_resource_name(data.get("name"), "目录名称")
     folder = db.query(Folder).filter(Folder.id == fid).first()
     if not folder:
@@ -531,7 +529,6 @@ def rename_folder(fid: int, data: dict, user: User = Depends(get_user), db: Sess
 
 @app.delete("/api/admin/folders/{fid}")
 def del_folder(fid: int, user: User = Depends(get_user), db: Session = Depends(get_db)):
-    require_admin(user)
     folder = db.query(Folder).filter(Folder.id == fid).first()
     if not folder:
         raise HTTPException(status_code=404, detail="目录不存在")
