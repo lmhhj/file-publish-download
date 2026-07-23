@@ -311,7 +311,7 @@
 
                     <nav class="flex gap-2 overflow-x-auto p-3 lg:flex-1 lg:flex-col lg:overflow-y-auto lg:p-4" aria-label="后台导航">
                         <button @click="switchTab('files')" :class="tab==='files'?'bg-white/70 text-[var(--ink)] border-[var(--line-strong)] shadow-sm dark:bg-white/12':'text-[var(--muted)] border-transparent'" class="glass-nav h-11 shrink-0 px-4 text-sm lg:w-full"><i class="ri-database-2-line"></i> 资源管理</button>
-                        <button @click="switchTab('upload')" :class="tab==='upload'?'bg-white/70 text-[var(--ink)] border-[var(--line-strong)] shadow-sm dark:bg-white/12':'text-[var(--muted)] border-transparent'" class="glass-nav h-11 shrink-0 px-4 text-sm lg:w-full"><i class="ri-upload-cloud-2-line"></i> 发布固件</button>
+                        <button @click="openUploadForCurrentFolder" :class="tab==='upload'?'bg-white/70 text-[var(--ink)] border-[var(--line-strong)] shadow-sm dark:bg-white/12':'text-[var(--muted)] border-transparent'" class="glass-nav h-11 shrink-0 px-4 text-sm lg:w-full"><i class="ri-upload-cloud-2-line"></i> 发布固件</button>
                         <button v-if="role==='admin'" @click="switchTab('users')" :class="tab==='users'?'bg-white/70 text-[var(--ink)] border-[var(--line-strong)] shadow-sm dark:bg-white/12':'text-[var(--muted)] border-transparent'" class="glass-nav h-11 shrink-0 px-4 text-sm lg:w-full"><i class="ri-team-line"></i> 成员授权</button>
                         <button v-if="role==='admin'" @click="switchTab('wechat')" :class="tab==='wechat'?'bg-white/70 text-[var(--ink)] border-[var(--line-strong)] shadow-sm dark:bg-white/12':'text-[var(--muted)] border-transparent'" class="glass-nav h-11 shrink-0 px-4 text-sm lg:w-full"><i class="ri-wechat-line"></i> 微信通知</button>
                         <button v-if="role==='admin'" @click="switchTab('cfg')" :class="tab==='cfg'?'bg-white/70 text-[var(--ink)] border-[var(--line-strong)] shadow-sm dark:bg-white/12':'text-[var(--muted)] border-transparent'" class="glass-nav h-11 shrink-0 px-4 text-sm lg:w-full"><i class="ri-window-line"></i> 前端配置</button>
@@ -355,6 +355,7 @@
                                     <div class="flex items-center gap-2 overflow-x-auto text-sm font-bold text-[var(--muted)]">
                                         <button @click="navTo(0)" class="glass-btn h-10 shrink-0 px-3 text-sm"><i class="ri-home-4-line"></i> 根目录</button>
                                         <template v-for="bc in breadcrumbs"><i class="ri-arrow-right-s-line shrink-0 opacity-55"></i><button @click="navTo(bc.id)" class="glass-btn h-10 shrink-0 px-3 text-sm">{{bc.name}}</button></template>
+                                        <button @click="openUploadForCurrentFolder" class="glass-btn primary-btn ml-2 h-10 shrink-0 px-4 text-sm"><i class="ri-upload-cloud-2-line"></i> 发布固件</button>
                                     </div>
                                     <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
                                         <label class="relative sm:w-64">
@@ -422,7 +423,23 @@
                             </div>
                             <div class="glass-panel p-5 sm:p-6">
                                 <div class="space-y-4">
-                                    <div><label class="label">发布目录</label><select v-model="form.folder_id" class="field"><option :value="0">/ 根目录</option><option v-for="f in allFolders" :value="f.id">{{f.name}}</option></select></div>
+                                    <div>
+                                        <label class="label">发布目录</label>
+                                        <label class="relative mb-2 block">
+                                            <i class="ri-search-line absolute left-4 top-1/2 -translate-y-1/2 text-[var(--muted)]"></i>
+                                            <input v-model="folderSearch" @keydown.esc="folderSearch=''" placeholder="搜索目录名称或完整路径..." class="field h-11 pl-11 text-sm">
+                                        </label>
+                                        <div v-if="folderSearch" class="max-h-48 overflow-y-auto rounded-lg border border-[var(--line)] bg-white/40 p-1 dark:bg-white/5">
+                                            <button v-for="option in filteredUploadFolderOptions" @click="selectUploadFolder(option.id)" type="button" class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left font-mono text-sm font-bold text-[var(--ink)] hover:bg-white/70 dark:hover:bg-white/10">
+                                                <i class="ri-folder-line shrink-0 text-[var(--cyan)]"></i>
+                                                <span class="min-w-0 break-all">{{option.label}}</span>
+                                            </button>
+                                            <div v-if="filteredUploadFolderOptions.length===0" class="px-3 py-4 text-center text-sm font-bold text-[var(--muted)]">未找到匹配目录</div>
+                                        </div>
+                                        <select v-else v-model.number="form.folder_id" class="field font-mono text-sm">
+                                            <option v-for="option in uploadFolderOptions" :value="option.id">{{option.label}}</option>
+                                        </select>
+                                    </div>
                                     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2"><div><label class="label">版本号</label><input v-model="form.v" placeholder="例如 v1.2.0" class="field"></div><div><label class="label">Git ID</label><input v-model="form.git" placeholder="提交哈希" class="field font-mono text-sm"></div></div>
                                     <div><label class="label">变更记录</label><textarea v-model="form.c" placeholder="填写本次发布的变更记录..." class="field h-32 resize-none"></textarea></div>
                                     <div v-if="uping" class="h-2 w-full overflow-hidden rounded-full bg-white/40 dark:bg-white/10"><div class="h-full bg-gradient-to-r from-[var(--cyan)] to-[var(--mint)] transition-all duration-200" :style="{width: uploadProgress + '%'}"></div></div>
@@ -577,6 +594,7 @@
                 const allFiles = ref([]); const allFolders = ref([]); const userList = ref([]);
                 const config = ref({}); const currentFolderId = ref(0);
                 const searchQuery = ref(''); const onlyMyFiles = ref(false);
+                const folderSearch = ref('');
                 const uploadProgress = ref(0);
                 const loginForm = ref({username:'', password:''});
                 const form = ref({v:'', c:'', git:'', folder_id: 0});
@@ -620,6 +638,16 @@
                 };
 
                 const switchTab = (t) => { tab.value = t; loadData(); };
+                const selectUploadFolder = (id) => {
+                    form.value.folder_id = id;
+                    folderSearch.value = '';
+                };
+                const openUploadForCurrentFolder = () => {
+                    form.value.folder_id = currentFolderId.value;
+                    folderSearch.value = '';
+                    tab.value = 'upload';
+                    loadData();
+                };
                 const navTo = (id) => currentFolderId.value = id;
                 const logout = () => { localStorage.clear(); location.reload(); };
                 const toggleDark = () => { isDark.value = !isDark.value; document.documentElement.classList.toggle('dark'); localStorage.setItem('theme', isDark.value?'dark':'light'); };
@@ -631,11 +659,75 @@
                 const delU = async (id) => { if(confirm("确认永久注销该账号？")) { await api(`/api/admin/users/${id}`, {method:'DELETE'}); loadData(); } };
                 const saveCfg = async () => { await api('/api/admin/settings', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(config.value)}); alert('配置已成功保存并应用'); };
 
-                const doUp = async () => { if(!file.value) return; uping.value = true; uploadProgress.value = 0; const fd = new FormData(); fd.append('file', file.value); fd.append('version', form.value.v); fd.append('changelog', form.value.c); fd.append('git_commit', form.value.git); fd.append('folder_id', form.value.folder_id); const xhr = new XMLHttpRequest(); xhr.open('POST', '/api/upload'); xhr.setRequestHeader('Authorization', `Bearer ${token.value}`); xhr.upload.onprogress = (e) => { if (e.lengthComputable) uploadProgress.value = Math.round((e.loaded/e.total)*100); }; xhr.onload = () => { if(xhr.status === 200) { alert('发布成功'); location.reload(); } else { alert('发布失败'); uping.value=false; } }; xhr.send(fd); };
-                const confirmCreateFolder = async () => { if(!newFolderName.value.trim()) return; await api('/api/admin/folders', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name:newFolderName.value, parent_id: currentFolderId.value})}); newFolderName.value = ''; showFolderModal.value = false; loadData(); };
-                const delFolder = async (id) => { if(confirm("确认删除目录？")) { await api(`/api/admin/folders/${id}`, {method:'DELETE'}); loadData(); } };
+                const doUp = async () => {
+                    if(!file.value) return;
+                    uping.value = true;
+                    uploadProgress.value = 0;
+                    const fd = new FormData();
+                    fd.append('file', file.value);
+                    fd.append('version', form.value.v);
+                    fd.append('changelog', form.value.c);
+                    fd.append('git_commit', form.value.git);
+                    fd.append('folder_id', form.value.folder_id);
+                    const xhr = new XMLHttpRequest();
+                    xhr.open('POST', '/api/upload');
+                    xhr.setRequestHeader('Authorization', `Bearer ${token.value}`);
+                    xhr.upload.onprogress = (e) => { if(e.lengthComputable) uploadProgress.value = Math.round((e.loaded/e.total)*100); };
+                    xhr.onload = () => {
+                        if(xhr.status === 200) {
+                            alert('发布成功');
+                            file.value = null;
+                            form.value = {v:'', c:'', git:'', folder_id: currentFolderId.value};
+                            uploadProgress.value = 0;
+                            uping.value = false;
+                            tab.value = 'files';
+                            loadData();
+                        } else {
+                            alert('发布失败');
+                            uping.value = false;
+                        }
+                    };
+                    xhr.onerror = () => { alert('发布失败：网络连接异常'); uping.value = false; };
+                    xhr.send(fd);
+                };
+                const confirmCreateFolder = async () => {
+                    if(!newFolderName.value.trim()) return;
+                    const response = await api('/api/admin/folders', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name:newFolderName.value, parent_id: currentFolderId.value})});
+                    if(!response.ok) {
+                        let message = '创建文件夹失败';
+                        try { const body = await response.json(); if(body.detail) message = body.detail; } catch(e) {}
+                        alert(message);
+                        return;
+                    }
+                    newFolderName.value = '';
+                    showFolderModal.value = false;
+                    loadData();
+                };
+                const delFolder = async (id) => {
+                    if(!confirm('确认删除此目录？仅空目录可以删除。')) return;
+                    const response = await api(`/api/admin/folders/${id}`, {method:'DELETE'});
+                    if(!response.ok) {
+                        let message = '删除目录失败';
+                        try { const body = await response.json(); if(body.detail) message = body.detail; } catch(e) {}
+                        alert(message);
+                        return;
+                    }
+                    loadData();
+                };
                 const openFolderEdit = (folder) => { folderEditModal.value = { show: true, id: folder.id, name: folder.name }; };
-                const saveFolderEdit = async () => { if(!folderEditModal.value.name.trim()) return; await api(`/api/admin/folders/${folderEditModal.value.id}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name: folderEditModal.value.name})}); folderEditModal.value.show = false; loadData(); };
+                const saveFolderEdit = async () => {
+                    const name = folderEditModal.value.name.trim();
+                    if(!name || !confirm(`确认将目录重命名为“${name}”？`)) return;
+                    const response = await api(`/api/admin/folders/${folderEditModal.value.id}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name})});
+                    if(!response.ok) {
+                        let message = '重命名目录失败';
+                        try { const body = await response.json(); if(body.detail) message = body.detail; } catch(e) {}
+                        alert(message);
+                        return;
+                    }
+                    folderEditModal.value.show = false;
+                    loadData();
+                };
                 const openEdit = (f) => { editModal.value.data = f; editModal.value.form = {filename:f.name, folder_id:f.folder_id || 0, version:f.version, changelog:f.changelog, git_commit: f.git_commit}; editModal.value.show = true; };
                 const saveEdit = async () => {
                     const data = editModal.value.data;
@@ -665,10 +757,16 @@
                     return '/' + path.join('/');
                 };
                 const folderOptions = computed(() => allFolders.value.map(folder => ({id: folder.id, label: folderPathLabel(folder.id)})));
+                const uploadFolderOptions = computed(() => [{id: 0, label: '/ 根目录'}, ...folderOptions.value]);
+                const filteredUploadFolderOptions = computed(() => {
+                    const query = folderSearch.value.trim().toLowerCase();
+                    if(!query) return uploadFolderOptions.value;
+                    return uploadFolderOptions.value.filter(option => option.label.toLowerCase().includes(query));
+                });
 
                 onMounted(() => { if(isDark.value) document.documentElement.classList.add('dark'); loadData(); });
 
-                return { isDark, toggleDark, token, role, currentUser, tab, allFiles, allFolders, userList, config, currentFolderId, loginForm, form, uForm, userEditForm, showUserEditModal, openUserEdit, confirmUserEdit, testWechat, newP, drag, uping, file, editModal, switchTab, navTo, showFolderModal, newFolderName, folderEditModal, openFolderEdit, saveFolderEdit, confirmCreateFolder, delFolder, doUp, doLogin, onDrop, onFile, delF, openEdit, saveEdit, addU, delU, saveCfg, setPw, logout, tabNames, formatSize, uploadProgress, searchQuery, onlyMyFiles, folderOptions,
+                return { isDark, toggleDark, token, role, currentUser, tab, allFiles, allFolders, userList, config, currentFolderId, loginForm, form, uForm, userEditForm, showUserEditModal, openUserEdit, confirmUserEdit, testWechat, newP, drag, uping, file, editModal, switchTab, selectUploadFolder, openUploadForCurrentFolder, navTo, showFolderModal, newFolderName, folderEditModal, openFolderEdit, saveFolderEdit, confirmCreateFolder, delFolder, doUp, doLogin, onDrop, onFile, delF, openEdit, saveEdit, addU, delU, saveCfg, setPw, logout, tabNames, formatSize, uploadProgress, searchQuery, onlyMyFiles, folderSearch, uploadFolderOptions, filteredUploadFolderOptions, folderOptions, folderPathLabel,
                     historyModal, openHistory, deleteHistoryVersion,
                     displayFiles: computed(() => {
                         let list = allFiles.value;

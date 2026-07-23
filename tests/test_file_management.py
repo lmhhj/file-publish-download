@@ -517,6 +517,85 @@ class FileManagementTest(unittest.TestCase):
         folders = self.client.get("/api/public/data").json()["folders"]
         self.assertTrue(any(folder["id"] == folder_id and folder["name"] == "新目录" for folder in folders))
 
+    def test_non_admin_can_create_folder_in_current_parent(self):
+        parent_response = self.client.post(
+            "/api/admin/folders",
+            headers=self.headers,
+            json={"name": "普通用户父目录", "parent_id": 0},
+        )
+        self.assertEqual(parent_response.status_code, 200, parent_response.text)
+        parent_id = next(
+            folder["id"]
+            for folder in self.client.get("/api/public/data").json()["folders"]
+            if folder["name"] == "普通用户父目录"
+        )
+        user_headers = self.create_user("folder-creator", "folder-pw")
+
+        response = self.client.post(
+            "/api/admin/folders",
+            headers=user_headers,
+            json={"name": "普通用户子目录", "parent_id": parent_id},
+        )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        db = self.main.SessionLocal()
+        try:
+            folder = db.query(self.main.Folder).filter(self.main.Folder.name == "普通用户子目录").one()
+            self.assertEqual(folder.parent_id, parent_id)
+            self.assertEqual(folder.creator, "folder-creator")
+        finally:
+            db.close()
+
+    def test_non_admin_can_rename_and_delete_empty_folder(self):
+        create_response = self.client.post(
+            "/api/admin/folders",
+            headers=self.headers,
+            json={"name": "管理员维护目录", "parent_id": 0},
+        )
+        self.assertEqual(create_response.status_code, 200, create_response.text)
+        folder_id = next(
+            folder["id"]
+            for folder in self.client.get("/api/public/data").json()["folders"]
+            if folder["name"] == "管理员维护目录"
+        )
+        user_headers = self.create_user("folder-viewer", "folder-pw")
+
+        rename_response = self.client.put(
+            f"/api/admin/folders/{folder_id}",
+            headers=user_headers,
+            json={"name": "越权重命名"},
+        )
+        delete_response = self.client.delete(f"/api/admin/folders/{folder_id}", headers=user_headers)
+
+        self.assertEqual(rename_response.status_code, 200, rename_response.text)
+        self.assertEqual(delete_response.status_code, 200, delete_response.text)
+        folders = self.client.get("/api/public/data").json()["folders"]
+        self.assertFalse(any(folder["id"] == folder_id for folder in folders))
+
+    def test_admin_upload_entry_targets_current_folder(self):
+        root = Path(__file__).resolve().parents[1]
+        html = (root / "frontend/admin/index.html").read_text(encoding="utf-8")
+
+        breadcrumb_index = html.index('@click="navTo(0)"')
+        upload_index = html.index('@click="openUploadForCurrentFolder"', breadcrumb_index)
+        search_index = html.index('v-model="searchQuery"')
+        self.assertLess(breadcrumb_index, upload_index)
+        self.assertLess(upload_index, search_index)
+        self.assertEqual(html.count('@click="openUploadForCurrentFolder"'), 2)
+        self.assertIn("form.value.folder_id = currentFolderId.value", html)
+        self.assertNotIn('@click="switchTab(\'upload\')"', html)
+        self.assertIn('v-model="folderSearch"', html)
+        self.assertIn('<select v-else v-model.number="form.folder_id"', html)
+        self.assertIn('v-for="option in uploadFolderOptions"', html)
+        self.assertIn('@click="selectUploadFolder(option.id)"', html)
+        self.assertIn('v-for="option in filteredUploadFolderOptions"', html)
+        self.assertIn('{{option.label}}', html)
+        self.assertIn('<button @click.stop="openFolderEdit(f)"', html)
+        self.assertNotIn('v-if="role===\'admin\'" @click.stop="openFolderEdit(f)"', html)
+        self.assertIn("确认将目录重命名为", html)
+        self.assertIn("仅空目录可以删除", html)
+        self.assertIn("if(!response.ok)", html)
+
     def test_admin_rejects_invalid_folder_names(self):
         for name in ["", ".", "..", "bad/name", "bad\\name", "bad\x00name"]:
             with self.subTest(name=name):
@@ -602,13 +681,12 @@ class FileManagementTest(unittest.TestCase):
         user_headers = self.create_user("normal-user", "normal-pw")
 
         requests = [
-            self.client.post("/api/admin/folders", headers=user_headers, json={"name": "nope", "parent_id": 0}),
             self.client.post("/api/admin/users", headers=user_headers, json={"username": "nope", "password": "pw"}),
             self.client.post("/api/admin/settings", headers=user_headers, json={"site_title": "nope"}),
             self.client.post("/api/admin/wechat/test", headers=user_headers),
         ]
 
-        self.assertEqual([response.status_code for response in requests], [403, 403, 403, 403])
+        self.assertEqual([response.status_code for response in requests], [403, 403, 403])
 
     def test_admin_rejects_invalid_user_create_payload(self):
         for payload in [
